@@ -25,7 +25,9 @@ function render(path) {
     }
     title(path);
     nav(path);
-    if (path.substr(-1) == '/') {
+    // .../0: 这种
+    var reg = /\/\d+:$/g;
+    if (path.match(reg) || path.substr(-1) == '/') {
         list(path);
     } else {
         file(path);
@@ -36,16 +38,29 @@ function render(path) {
 // 渲染 title
 function title(path) {
     path = decodeURI(path);
-    $('title').html(document.siteName + ' - ' + path);
+    var cur = window.current_drive_order || 0;
+    var drive_name = window.drive_names[cur];
+    path = path.replace(`/${cur}:`, '');
+    // $('title').html(document.siteName + ' - ' + path);
+    $('title').html(`${document.siteName} - ${drive_name} - ${path}`);
 }
 
 // 渲染导航栏
 function nav(path) {
     var html = "";
-    html += `<a href="/" class="mdui-typo-headline folder">${document.siteName}</a>`;
+    var cur = window.current_drive_order || 0;
+    html += `<a href="/${cur}:/" class="mdui-typo-headline folder">${document.siteName}</a>`;
+    var names = window.drive_names;
+    html += `<button class="mdui-btn mdui-btn-raised" mdui-menu="{target: '#drive-names'}"><i class="mdui-icon mdui-icon-left material-icons">share</i> ${names[cur]}</button>`;
+    html += `<ul class="mdui-menu" id="drive-names" style="transform-origin: 0px 0px; position: fixed;">`;
+    names.forEach((name, idx) => {
+        html += `<li class="mdui-menu-item ${(idx === cur) ? 'mdui-list-item-active' : ''} "><a href="/${idx}:/" class="mdui-ripple">${name}</a></li>`;
+    });
+    html += `</ul>`;
     var arr = path.trim('/').split('/');
     var p = '/';
-    if (arr.length > 0) {
+    if (arr.length > 1) {
+        arr.shift();
         for (i in arr) {
             var n = arr[i];
             n = decodeURI(n);
@@ -53,7 +68,7 @@ function nav(path) {
             if (n == '') {
                 break;
             }
-            html += `<i class="mdui-icon material-icons mdui-icon-dark folder" style="margin:0;">chevron_right</i><a class="folder" href="${p}">${n}</a>`;
+            html += `<i class="mdui-icon material-icons mdui-icon-dark folder" style="margin:0;">chevron_right</i><a class="folder" href="/${cur}:${p}">${n}</a>`;
         }
     }
     $('#nav').html(html);
@@ -144,7 +159,7 @@ function list_files(path, files) {
                     markdown("#head_md", data);
                 });
             }
-            var ext = p.split('.').pop();
+            var ext = p.split('.').pop().toLowerCase();
             if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|".indexOf(`|${ext}|`) >= 0) {
                 p += "?a=view";
                 c += " view";
@@ -181,7 +196,7 @@ function get_file(path, file, callback) {
 // 文件展示 ?a=view
 function file(path) {
     var name = path.split('/').pop();
-    var ext = name.split('.').pop().toLowerCase().replace(`?a=view`, "");
+    var ext = name.split('.').pop().toLowerCase().replace(`?a=view`, "").toLowerCase();
     if ("|html|php|css|go|java|js|json|txt|sh|md|".indexOf(`|${ext}|`) >= 0) {
         return file_code(path);
     }
@@ -218,7 +233,7 @@ function file_code(path) {
         "md": "Markdown",
     };
     var name = path.split('/').pop();
-    var ext = name.split('.').pop();
+    var ext = name.split('.').pop().toLowerCase();
     var href = window.location.origin + path;
     var content = `
 <div class="mdui-container">

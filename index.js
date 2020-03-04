@@ -1,29 +1,59 @@
 var authConfig = {
     "siteName": "GoIndex", // 网站名称
-    "root_pass": "index",  // 根目录密码，优先于.password
-    "version": "1.0.6", // 程序版本
+    "version": "20.03.04", // 程序版本
+    // 此版本只支持 material
     "theme": "material", // material  classic
     "client_id": "202264815644.apps.googleusercontent.com",
     "client_secret": "X4Z3ca8xfWDb1Voo-F9a7ZxJ",
     "refresh_token": "", // 授权 token
-    "root": "root" // 根目录ID
+    /**
+     * 设置要显示的多个云端硬盘；按格式添加多个
+     * id 可以是 团队盘id、子文件夹id、或者"root"（代表个人盘根目录）；
+     * name 显示的名称
+     * pass 为对应的密码，可以单独设置，不需要密码则设置为空字符串；
+     */
+    "roots": [
+        {
+            id: "root",
+            name: "个人盘",
+            pass: ""
+        },
+        {
+            id: "drive_id",
+            name: "团队盘1",
+            pass: "111"
+        },
+        {
+            id: "folder_id",
+            name: "文件夹",
+            pass: "222"
+        }
+    ]
 };
 
-var gd;
+// gd instances
+var gds = [];
 
-var html = `
+function html(current_drive_order = 0) {
+    return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0,maximum-scale=1.0, user-scalable=no"/>
   <title>${authConfig.siteName}</title>
-  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/donwa/goindex@${authConfig.version}/themes/${authConfig.theme}/app.js"></script>
+  <script>
+    window.drive_names = JSON.parse('${JSON.stringify(authConfig.roots.map(it => it.name))}');
+    window.current_drive_order = ${current_drive_order};
+  </script>
+  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@${authConfig.version}/themes/${authConfig.theme}/app.js"></script>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
 </head>
 <body>
 </body>
 </html>
 `;
+};
 
 addEventListener('fetch', event => {
     event.respondWith(handleRequest(event.request));
@@ -34,20 +64,53 @@ addEventListener('fetch', event => {
  * @param {Request} request
  */
 async function handleRequest(request) {
-    if (gd == undefined) {
-        gd = new googleDrive(authConfig);
+    if (gds.length === 0) {
+        for (let i = 0; i < authConfig.roots.length; i++) {
+            gds.push(new googleDrive(authConfig, i))
+        }
     }
 
-    if (request.method == 'POST') {
-        return apiRequest(request);
-    }
-
+    // 从 path 中提取 drive order
+    // 并根据 drive order 获取对应的 gd instance
+    let gd;
     let url = new URL(request.url);
     let path = url.pathname;
+
+    /**
+     * 重定向至起始页
+     * @returns {Response}
+     */
+    function redirectToIndexPage() {
+        return new Response('', {status: 301, headers: {'Location': `${url.origin}/0:/`}});
+    }
+
+    if (path == '/') return redirectToIndexPage();
+    // 期望的 path 格式
+    let reg = /^\/\d+:\/.*$/g;
+    try {
+        if (!path.match(reg)) {
+            return redirectToIndexPage();
+        }
+        let split = path.split("/");
+        let order = Number(split[1].slice(0, -1));
+        if (order >= 0 && order < gds.length) {
+            gd = gds[order];
+        } else {
+            return redirectToIndexPage()
+        }
+    } catch (e) {
+        return redirectToIndexPage()
+    }
+
+    path = path.replace(gd.url_path_prefix, '') || '/';
+    if (request.method == 'POST') {
+        return apiRequest(request, gd);
+    }
+
     let action = url.searchParams.get('a');
 
     if (path.substr(-1) == '/' || action != null) {
-        return new Response(html, {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}});
+        return new Response(html(gd.order), {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}});
     } else {
         if (path.split('/').pop().toLowerCase() == ".password") {
             return new Response("", {status: 404});
@@ -59,9 +122,10 @@ async function handleRequest(request) {
 }
 
 
-async function apiRequest(request) {
+async function apiRequest(request, gd) {
     let url = new URL(request.url);
     let path = url.pathname;
+    path = path.replace(gd.url_path_prefix, '') || '/';
 
     let option = {status: 200, headers: {'Access-Control-Allow-Origin': '*'}}
 
@@ -91,14 +155,22 @@ async function apiRequest(request) {
 }
 
 class googleDrive {
-    constructor(authConfig) {
+    constructor(authConfig, order) {
+        // 每个盘对应一个order，对应一个gd实例
+        this.order = order;
+        this.root = authConfig.roots[order];
+        this.url_path_prefix = `/${order}:`;
         this.authConfig = authConfig;
+        // path id
         this.paths = [];
+        // path file
         this.files = [];
+        // path pass
         this.passwords = [];
-        this.paths["/"] = authConfig.root;
-        if (authConfig.root_pass != "") {
-            this.passwords["/"] = authConfig.root_pass;
+
+        this.paths["/"] = this.root['id'];
+        if (this.root['pass'] != "") {
+            this.passwords['/'] = this.root['pass'];
         }
         this.accessToken();
     }
@@ -127,7 +199,7 @@ class googleDrive {
         console.log(parent);
         let url = 'https://www.googleapis.com/drive/v3/files';
         let params = {'includeItemsFromAllDrives': true, 'supportsAllDrives': true};
-        params.q = `'${parent}' in parents and name = '${name}' andtrashed = false`;
+        params.q = `'${parent}' in parents and name = '${name}' and trashed = false`;
         params.fields = "files(id, name, mimeType, size ,createdTime, modifiedTime, iconLink, thumbnailLink)";
         url += '?' + this.enQuery(params);
         let requestOption = await this.requestOption();
@@ -139,18 +211,18 @@ class googleDrive {
 
     // 通过reqeust cache 来缓存
     async list(path) {
-        if (gd.cache == undefined) {
-            gd.cache = {};
+        if (this.cache == undefined) {
+            this.cache = {};
         }
 
-        if (gd.cache[path]) {
-            return gd.cache[path];
+        if (this.cache[path]) {
+            return this.cache[path];
         }
 
         let id = await this.findPathId(path);
         var obj = await this._ls(id);
         if (obj.files && obj.files.length > 1000) {
-            gd.cache[path] = obj;
+            this.cache[path] = obj;
         }
 
         return obj
@@ -163,7 +235,7 @@ class googleDrive {
 
         console.log("load", path, ".password", this.passwords[path]);
 
-        let file = await gd.file(path + '.password');
+        let file = await this.file(path + '.password');
         if (file == undefined) {
             this.passwords[path] = null;
         } else {
