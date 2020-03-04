@@ -1,4 +1,10 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
+
+> update 2020-3-4 :  
+> 在原版基础上修改：
+- 添加多盘支持，自主设置要显示的多盘及各自密码
+- 前端只修改了 material ，故不支持 classic 主题
+- 配置见 `index.js` 注释
   
 GoIndex  
 ====  
