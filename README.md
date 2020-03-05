@@ -1,5 +1,10 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
 
+> update 2020-3-5 :  
+- 文件列表页分页增量加载，支持自定义分页大小，多页内容的可以缓存，配置见 `index.js` 注释
+- 图片浏览页 下一张/上一张 导航
+- 优化列目录时的速度
+
 > update 2020-3-4 :  
 > 在原版基础上修改：
 - 添加多盘支持，自主设置要显示的多盘及各自密码
