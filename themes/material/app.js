@@ -239,8 +239,10 @@ function append_files_to_list(path, files) {
     var $list = $('#list');
     // 是最后一页数据了吗？
     var is_lastpage_loaded = null === $list.data('nextPageToken');
+    var is_firstpage = '0' == $list.data('curPageIndex');
 
     html = "";
+    let targetFiles = [];
     for (i in files) {
         var item = files[i];
         var p = path + item.name + '/';
@@ -262,6 +264,7 @@ function append_files_to_list(path, files) {
 	        </li>`;
         } else {
             var p = path + item.name;
+            const filepath = path + item.name;
             var c = "file";
             // 当加载完最后一页后，才显示 README ，否则会影响滚动事件
             if (is_lastpage_loaded && item.name == "README.md") {
@@ -276,6 +279,7 @@ function append_files_to_list(path, files) {
             }
             var ext = p.split('.').pop().toLowerCase();
             if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|".indexOf(`|${ext}|`) >= 0) {
+                targetFiles.push(filepath);
                 p += "?a=view";
                 c += " view";
             }
@@ -289,6 +293,22 @@ function append_files_to_list(path, files) {
 	          </a>
 	      </li>`;
         }
+    }
+
+    let targetObj = {};
+    targetFiles.forEach((myFilepath, myIndex) => {
+        if (!targetObj[myFilepath]) {
+            targetObj[myFilepath] = {
+                filepath: myFilepath,
+                prev: myIndex === 0 ? null : targetFiles[myIndex - 1],
+                next: myIndex === targetFiles.length - 1 ? null : targetFiles[myIndex + 1],
+            }
+        }
+    })
+    // console.log(targetObj)
+    if (Object.keys(targetObj).length) {
+        localStorage.setItem(path, JSON.stringify(targetObj));
+        // console.log(path)
     }
 
     // 是第1页时，去除横向loading条
@@ -450,17 +470,55 @@ function file_audio(path) {
 // 图片展示
 function file_image(path) {
     var url = window.location.origin + path;
+    // console.log(window.location.pathname)
+    const currentPathname = window.location.pathname
+    const lastIndex = currentPathname.lastIndexOf('/');
+    const fatherPathname = currentPathname.slice(0, lastIndex + 1);
+    // console.log(fatherPathname)
+    let targetObj = localStorage.getItem(fatherPathname);
+    // console.log(`fatherPathname: ${fatherPathname}`);
+    // console.log(targetObj)
+    let targetText = '';
+    if (targetObj) {
+        try {
+            targetObj = JSON.parse(targetObj);
+        } catch (e) {
+            targetObj = {};
+        }
+        if (Object.keys(targetObj).length && targetObj[path]) {
+            // console.log(`targetObj ${targetObj[path]}`);
+            targetText = `
+            <div class="mdui-container">
+                <div class="mdui-row-xs-2">
+                    <div class="mdui-col">
+                        ${targetObj[path].prev ? `<button id="leftBtn" data-filepath="${targetObj[path].prev}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">上一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>上一张</button>`}
+                    </div>
+                    <div class="mdui-col">
+                        ${targetObj[path].next ? `<button id="rightBtn"  data-filepath="${targetObj[path].next}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">下一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>下一张</button>`}
+                    </div> 
+                </div>
+            </div>
+            `;
+        }
+        // <div id="btns" >
+        //             ${targetObj[path].prev ? `<span id="leftBtn" data-direction="left" data-filepath="${targetObj[path].prev}"><i class="mdui-icon material-icons">&#xe5c4;</i><span style="margin-left: 10px;">Prev</span></span>` : `<span style="cursor: not-allowed;color: rgba(0,0,0,0.2);margin-bottom:20px;"><i class="mdui-icon material-icons">&#xe5c4;</i><span style="margin-left: 10px;">Prev</span></span>`}
+        //             ${targetObj[path].next ? `<span id="rightBtn" data-direction="right"  data-filepath="${targetObj[path].next}"><i class="mdui-icon material-icons">&#xe5c8;</i><span style="margin-left: 10px;">Next</span></span>` : `<span style="cursor: not-allowed;color: rgba(0,0,0,0.2);"><i class="mdui-icon material-icons">&#xe5c4;</i><span style="margin-left: 10px;">Prev</span></span>`}
+        // </div>
+    }
     var content = `
 <div class="mdui-container-fluid">
-	<br>
-	<img class="mdui-img-fluid" src="${url}"/>
+    <br>
+    <div id="imgWrap">
+        ${targetText}
+	    <img class="mdui-img-fluid" src="${url}"/>
+    </div>
 	<br>
 	<div class="mdui-textfield">
 	  <label class="mdui-textfield-label">下载地址</label>
 	  <input class="mdui-textfield-input" type="text" value="${url}"/>
 	</div>
 	<div class="mdui-textfield">
-	  <label class="mdui-textfield-label">HTML 引用</label>
+	  <label class="mdui-textfield-label">HTML 引用地址</label>
 	  <input class="mdui-textfield-input" type="text" value="<img src='${url}' />"/>
 	</div>
         <div class="mdui-textfield">
@@ -470,8 +528,19 @@ function file_image(path) {
         <br>
 </div>
 <a href="${url}" class="mdui-fab mdui-fab-fixed mdui-ripple mdui-color-theme-accent"><i class="mdui-icon material-icons">file_download</i></a>
-	`;
+    `;
+    //my code
     $('#content').html(content);
+    $('#leftBtn, #rightBtn').click((e) => {
+        let target = $(e.target);
+        if (['I', 'SPAN'].includes(e.target.nodeName)) {
+            target = $(e.target).parent();
+        }
+        const filepath = target.attr('data-filepath');
+        const direction = target.attr('data-direction');
+        //console.log(`${direction}翻页 ${filepath}`);
+        file(filepath)
+    });
 }
 
 
