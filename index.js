@@ -1,6 +1,6 @@
 var authConfig = {
     "siteName": "GoIndex", // 网站名称
-    "version": "20.03.04", // 程序版本
+    "version": "_3.5", // 程序版本
     // 此版本只支持 material
     "theme": "material", // material  classic
     "client_id": "202264815644.apps.googleusercontent.com",
@@ -53,7 +53,7 @@ function html(current_drive_order = 0) {
     window.drive_names = JSON.parse('${JSON.stringify(authConfig.roots.map(it => it.name))}');
     window.current_drive_order = ${current_drive_order};
   </script>
-  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@_200305/themes/${authConfig.theme}/app.js"></script>
+  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@_3.5/themes/${authConfig.theme}/app.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
 </head>
 <body>
