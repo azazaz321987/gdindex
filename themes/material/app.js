@@ -28,6 +28,13 @@ function render(path) {
     // .../0: 这种
     var reg = /\/\d+:$/g;
     if (path.match(reg) || path.substr(-1) == '/') {
+        // 用来存储一些滚动事件的状态
+        window.scroll_status = {
+            // 滚动事件是否已经绑定
+            event_bound: false,
+            // "滚动到底部，正在加载更多数据" 事件的锁
+            loading_lock: false
+        };
         list(path);
     } else {
         file(path);
@@ -97,14 +104,6 @@ function requestListPath(path, params, resultCallback, authErrorCallback) {
         }
     })
 }
-
-// 用来存储一些滚动事件的状态
-window.scroll_status = {
-    // 滚动事件是否已经绑定
-    event_bound: false,
-    // "滚动到底部，正在加载更多数据" 事件的锁
-    loading_lock: false
-};
 
 
 // 渲染文件列表
@@ -295,7 +294,7 @@ function append_files_to_list(path, files) {
         }
     }
 
-    let targetObj = {};
+    /*let targetObj = {};
     targetFiles.forEach((myFilepath, myIndex) => {
         if (!targetObj[myFilepath]) {
             targetObj[myFilepath] = {
@@ -309,6 +308,26 @@ function append_files_to_list(path, files) {
     if (Object.keys(targetObj).length) {
         localStorage.setItem(path, JSON.stringify(targetObj));
         // console.log(path)
+    }*/
+
+    if (targetFiles.length > 0) {
+        let old = localStorage.getItem(path);
+        let new_children = targetFiles;
+        // 第1页重设；否则追加
+        if (!is_firstpage && old) {
+            let old_children;
+            try {
+                old_children = JSON.parse(old);
+                if (!Array.isArray(old_children)) {
+                    old_children = []
+                }
+            } catch (e) {
+                old_children = [];
+            }
+            new_children = old_children.concat(targetFiles)
+        }
+
+        localStorage.setItem(path, JSON.stringify(new_children))
     }
 
     // 是第1页时，去除横向loading条
@@ -475,26 +494,35 @@ function file_image(path) {
     const lastIndex = currentPathname.lastIndexOf('/');
     const fatherPathname = currentPathname.slice(0, lastIndex + 1);
     // console.log(fatherPathname)
-    let targetObj = localStorage.getItem(fatherPathname);
+    let target_children = localStorage.getItem(fatherPathname);
     // console.log(`fatherPathname: ${fatherPathname}`);
-    // console.log(targetObj)
+    // console.log(target_children)
     let targetText = '';
-    if (targetObj) {
+    if (target_children) {
         try {
-            targetObj = JSON.parse(targetObj);
+            target_children = JSON.parse(target_children);
+            if (!Array.isArray(target_children)) {
+                target_children = []
+            }
         } catch (e) {
-            targetObj = {};
+            console.error(e);
+            target_children = [];
         }
-        if (Object.keys(targetObj).length && targetObj[path]) {
-            // console.log(`targetObj ${targetObj[path]}`);
+        if (target_children.length > 0 && target_children.includes(path)) {
+            let len = target_children.length;
+            let cur = target_children.indexOf(path);
+            // console.log(`len = ${len}`)
+            // console.log(`cur = ${cur}`)
+            let prev_child = (cur - 1 > -1) ? target_children[cur - 1] : null;
+            let next_child = (cur + 1 < len) ? target_children[cur + 1] : null;
             targetText = `
             <div class="mdui-container">
-                <div class="mdui-row-xs-2">
+                <div class="mdui-row-xs-2 mdui-m-b-1">
                     <div class="mdui-col">
-                        ${targetObj[path].prev ? `<button id="leftBtn" data-filepath="${targetObj[path].prev}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">上一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>上一张</button>`}
+                        ${prev_child ? `<button id="leftBtn" data-filepath="${prev_child}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">上一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>上一张</button>`}
                     </div>
                     <div class="mdui-col">
-                        ${targetObj[path].next ? `<button id="rightBtn"  data-filepath="${targetObj[path].next}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">下一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>下一张</button>`}
+                        ${next_child ? `<button id="rightBtn"  data-filepath="${next_child}" class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple">下一张</button>` : `<button class="mdui-btn mdui-btn-block mdui-color-theme-accent mdui-ripple" disabled>下一张</button>`}
                     </div> 
                 </div>
             </div>
@@ -624,7 +652,7 @@ window.onpopstate = function () {
 $(function () {
     init();
     var path = window.location.pathname;
-    $("body").on("click", '.folder', function () {
+    /*$("body").on("click", '.folder', function () {
         var url = $(this).attr('href');
         history.pushState(null, null, url);
         render(url);
@@ -636,7 +664,7 @@ $(function () {
         history.pushState(null, null, url);
         render(url);
         return false;
-    });
+    });*/
 
     render(path);
 });
