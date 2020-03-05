@@ -74,6 +74,39 @@ function nav(path) {
     $('#nav').html(html);
 }
 
+/**
+ * 发起列目录的 POST 请求
+ * @param path Path
+ * @param params Form params
+ * @param resultCallback Success Result Callback
+ * @param authErrorCallback Pass Error Callback
+ */
+function requestListPath(path, params, resultCallback, authErrorCallback) {
+    var p = {
+        password: params['password'] || null,
+        page_token: params['page_token'] || null,
+        page_index: params['page_index'] || 0
+    };
+    $.post(path, p, function (data, status) {
+        var res = jQuery.parseJSON(data);
+        if (res && res.error && res.error.code == '401') {
+            // 密码验证失败
+            if (authErrorCallback) authErrorCallback(path)
+        } else if (res && res.data) {
+            if (resultCallback) resultCallback(res, path, p)
+        }
+    })
+}
+
+// 用来存储一些滚动事件的状态
+window.scroll_status = {
+    // 滚动事件是否已经绑定
+    event_bound: false,
+    // "滚动到底部，正在加载更多数据" 事件的锁
+    loading_lock: false
+};
+
+
 // 渲染文件列表
 function list(path) {
     var content = `
@@ -100,6 +133,7 @@ function list(path) {
 	 <div class="mdui-row"> 
 	  <ul id="list" class="mdui-list"> 
 	  </ul> 
+	  <div id="count" class="mdui-hidden mdui-center mdui-text-center mdui-m-b-3 mdui-typo-subheading mdui-text-color-blue-grey-500">共 <span class="number"></span> 项</div>
 	 </div>
 	 <div id="readme_md" class="mdui-typo" style="display:none; padding: 20px 0;"></div>
 	`;
@@ -109,9 +143,83 @@ function list(path) {
     $('#list').html(`<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>`);
     $('#readme_md').hide().html('');
     $('#head_md').hide().html('');
-    $.post(path, '{"password":"' + password + '"}', function (data, status) {
-        var obj = jQuery.parseJSON(data);
-        if (typeof obj != 'null' && obj.hasOwnProperty('error') && obj.error.code == '401') {
+
+    /**
+     * 列目录请求成功返回数据后的回调
+     * @param res 返回的结果(object)
+     * @param path 请求的路径
+     * @param prevReqParams 请求时所用的参数
+     */
+    function successResultCallback(res, path, prevReqParams) {
+
+        // 把 nextPageToken 和 currentPageIndex 暂存在 list元素 中
+        $('#list')
+            .data('nextPageToken', res['nextPageToken'])
+            .data('curPageIndex', res['curPageIndex']);
+
+        // 移除 loading spinner
+        $('#spinner').remove();
+
+        if (res['nextPageToken'] === null) {
+            // 如果是最后一页，取消绑定 scroll 事件，重置 scroll_status ，并 append 数据
+            $(window).off('scroll');
+            window.scroll_status.event_bound = false;
+            window.scroll_status.loading_lock = false;
+            append_files_to_list(path, res['data']['files']);
+        } else {
+            // 如果不是最后一页，append数据 ，并绑定 scroll 事件（如果还未绑定），更新 scroll_status
+            append_files_to_list(path, res['data']['files']);
+            if (window.scroll_status.event_bound !== true) {
+                // 绑定事件，如果还未绑定
+                $(window).on('scroll', function () {
+                    var scrollTop = $(this).scrollTop();
+                    var scrollHeight = $(document).height();
+                    var windowHeight = $(this).height();
+                    // 滚到底部
+                    if (scrollTop + windowHeight == scrollHeight) {
+                        /*
+                            滚到底部事件触发时，如果此时已经正在 loading 中，则忽略此次事件；
+                            否则，去 loading，并占据 loading锁，表明 正在 loading 中
+                         */
+                        if (window.scroll_status.loading_lock === true) {
+                            return;
+                        }
+                        window.scroll_status.loading_lock = true;
+
+                        // 展示一个 loading spinner
+                        $(`<div id="spinner" class="mdui-spinner mdui-spinner-colorful mdui-center"></div>`)
+                            .insertBefore('#readme_md');
+                        mdui.updateSpinners();
+                        // mdui.mutation();
+
+                        let $list = $('#list');
+                        requestListPath(path, {
+                                password: prevReqParams['password'],
+                                page_token: $list.data('nextPageToken'),
+                                // 请求下一页
+                                page_index: $list.data('curPageIndex') + 1
+                            },
+                            successResultCallback,
+                            // 密码和之前相同。不会出现 authError
+                            null
+                        )
+                    }
+                });
+                window.scroll_status.event_bound = true
+            }
+        }
+
+        // loading 成功，并成功渲染了新数据之后，释放 loading 锁，以便能继续处理 "滚动到底部" 事件
+        if (window.scroll_status.loading_lock === true) {
+            window.scroll_status.loading_lock = false
+        }
+    }
+
+    // 开始从第1页请求数据
+    requestListPath(path, {password: password},
+        successResultCallback,
+        function (path) {
+            $('#spinner').remove();
             var pass = prompt("目录加密, 请输入密码", "");
             localStorage.setItem('password' + path, pass);
             if (pass != null && pass != "") {
@@ -119,13 +227,19 @@ function list(path) {
             } else {
                 history.go(-1);
             }
-        } else if (typeof obj != 'null') {
-            list_files(path, obj.files);
-        }
-    });
+        });
 }
 
-function list_files(path, files) {
+/**
+ * 把请求得来的新一页的数据追加到 list 中
+ * @param path 路径
+ * @param files 请求得来的结果
+ */
+function append_files_to_list(path, files) {
+    var $list = $('#list');
+    // 是最后一页数据了吗？
+    var is_lastpage_loaded = null === $list.data('nextPageToken');
+
     html = "";
     for (i in files) {
         var item = files[i];
@@ -149,7 +263,8 @@ function list_files(path, files) {
         } else {
             var p = path + item.name;
             var c = "file";
-            if (item.name == "README.md") {
+            // 当加载完最后一页后，才显示 README ，否则会影响滚动事件
+            if (is_lastpage_loaded && item.name == "README.md") {
                 get_file(p, item, function (data) {
                     markdown("#readme_md", data);
                 });
@@ -175,7 +290,13 @@ function list_files(path, files) {
 	      </li>`;
         }
     }
-    $('#list').html(html);
+
+    // 是第1页时，去除横向loading条
+    $list.html(($list.data('curPageIndex') == '0' ? '' : $list.html()) + html);
+    // 是最后一页时，统计并显示出总项目数
+    if (is_lastpage_loaded) {
+        $('#count').removeClass('mdui-hidden').find('.number').text($list.find('li.mdui-list-item').length);
+    }
 }
 
 

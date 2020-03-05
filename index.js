@@ -28,7 +28,14 @@ var authConfig = {
             name: "文件夹",
             pass: "222"
         }
-    ]
+    ],
+    /**
+     * 文件列表页面每页显示的数量。【推荐设置值为 100 到 1000 之间】；
+     * 如果设置大于1000，会导致请求 drive api 时出错；
+     * 如果设置的值过小，会导致滚动条增量加载（分页加载）失效；
+     * 此值的另一个作用是，如果目录内文件数大于此设置值（即需要多页展示的），将会对首次列目录结果进行缓存。
+     */
+    "files_list_page_size": 500
 };
 
 // gd instances
@@ -85,6 +92,10 @@ async function handleRequest(request) {
     }
 
     if (path == '/') return redirectToIndexPage();
+    if (path.toLowerCase() == '/favicon.ico') {
+        // 后面可以找一个 favicon
+        return new Response('', {status: 404})
+    }
     // 期望的 path 格式
     let reg = /^\/\d+:\/.*$/g;
     try {
@@ -130,23 +141,23 @@ async function apiRequest(request, gd) {
     let option = {status: 200, headers: {'Access-Control-Allow-Origin': '*'}}
 
     if (path.substr(-1) == '/') {
+        let deferred_pass = gd.password(path);
+        let form = await request.formData();
+        // 这样可以提升首次列目录时的速度。缺点是，如果password验证失败，也依然会产生列目录的开销
+        let deferred_list_result = gd.list(path, form.get('page_token'), Number(form.get('page_index')));
+
         // check password
-        let password = await gd.password(path);
+        let password = await deferred_pass;
         console.log("dir password", password);
         if (password != undefined && password != null && password != "") {
-            try {
-                var obj = await request.json();
-            } catch (e) {
-                var obj = {};
-            }
-            console.log(password, obj);
-            if (password.replace("\n", "") != obj.password) {
+            if (password.replace("\n", "") != form.get('password')) {
                 let html = `{"error": {"code": 401,"message": "password error."}}`;
                 return new Response(html, option);
             }
         }
-        let list = await gd.list(path);
-        return new Response(JSON.stringify(list), option);
+
+        let list_result = await deferred_list_result;
+        return new Response(JSON.stringify(list_result), option);
     } else {
         let file = await gd.file(path);
         let range = request.headers.get('Range');
@@ -210,22 +221,83 @@ class googleDrive {
     }
 
     // 通过reqeust cache 来缓存
-    async list(path) {
-        if (this.cache == undefined) {
-            this.cache = {};
+    async list(path, page_token = null, page_index = 0) {
+        if (this.path_children_cache == undefined) {
+            // { <path> :[ {nextPageToken:'',data:{}}, {nextPageToken:'',data:{}} ...], ...}
+            this.path_children_cache = {};
         }
 
-        if (this.cache[path]) {
-            return this.cache[path];
+        if (this.path_children_cache[path]
+            && this.path_children_cache[path][page_index]
+            && this.path_children_cache[path][page_index].data
+        ) {
+            let child_obj = this.path_children_cache[path][page_index];
+            return {
+                nextPageToken: child_obj.nextPageToken || null,
+                curPageIndex: page_index,
+                data: child_obj.data
+            };
         }
 
         let id = await this.findPathId(path);
-        var obj = await this._ls(id);
-        if (obj.files && obj.files.length > 1000) {
-            this.cache[path] = obj;
+        let result = await this._ls(id, page_token, page_index);
+        let data = result.data;
+        // 对有多页的，进行缓存
+        if (result.nextPageToken && data.files) {
+            if (!Array.isArray(this.path_children_cache[path])) {
+                this.path_children_cache[path] = []
+            }
+            this.path_children_cache[path][Number(result.curPageIndex)] = {
+                nextPageToken: result.nextPageToken,
+                data: data
+            };
         }
 
-        return obj
+        return result
+    }
+
+
+    async _ls(parent, page_token = null, page_index = 0) {
+        console.log("_ls", parent);
+
+        if (parent == undefined) {
+            return null;
+        }
+        let obj;
+        let params = {'includeItemsFromAllDrives': true, 'supportsAllDrives': true};
+        params.q = `'${parent}' in parents and trashed = false AND name !='.password'`;
+        params.orderBy = 'folder,name,modifiedTime desc';
+        params.fields = "nextPageToken, files(id, name, mimeType, size , modifiedTime)";
+        params.pageSize = this.authConfig.files_list_page_size;
+
+        if (page_token) {
+            params.pageToken = page_token;
+        }
+        let url = 'https://www.googleapis.com/drive/v3/files';
+        url += '?' + this.enQuery(params);
+        let requestOption = await this.requestOption();
+        let response = await fetch(url, requestOption);
+        obj = await response.json();
+
+        return {
+            nextPageToken: obj.nextPageToken || null,
+            curPageIndex: page_index,
+            data: obj
+        };
+
+        /*do {
+            if (pageToken) {
+                params.pageToken = pageToken;
+            }
+            let url = 'https://www.googleapis.com/drive/v3/files';
+            url += '?' + this.enQuery(params);
+            let requestOption = await this.requestOption();
+            let response = await fetch(url, requestOption);
+            obj = await response.json();
+            files.push(...obj.files);
+            pageToken = obj.nextPageToken;
+        } while (pageToken);*/
+
     }
 
     async password(path) {
@@ -248,37 +320,6 @@ class googleDrive {
         return this.passwords[path];
     }
 
-    async _ls(parent) {
-        console.log("_ls", parent);
-
-        if (parent == undefined) {
-            return null;
-        }
-        const files = [];
-        let pageToken;
-        let obj;
-        let params = {'includeItemsFromAllDrives': true, 'supportsAllDrives': true};
-        params.q = `'${parent}' in parents and trashed = false AND name !='.password'`;
-        params.orderBy = 'folder,name,modifiedTime desc';
-        params.fields = "nextPageToken, files(id, name, mimeType, size , modifiedTime)";
-        params.pageSize = 1000;
-
-        do {
-            if (pageToken) {
-                params.pageToken = pageToken;
-            }
-            let url = 'https://www.googleapis.com/drive/v3/files';
-            url += '?' + this.enQuery(params);
-            let requestOption = await this.requestOption();
-            let response = await fetch(url, requestOption);
-            obj = await response.json();
-            files.push(...obj.files);
-            pageToken = obj.nextPageToken;
-        } while (pageToken);
-
-        obj.files = files;
-        return obj;
-    }
 
     async findPathId(path) {
         let c_path = '/';
