@@ -623,8 +623,7 @@ class googleDrive {
         }
 
         const p_files = await this.findParentFilesRecursion(child_id);
-        const size = p_files.length;
-        if (!p_files || size < 1) return '';
+        if (!p_files || p_files.length < 1) return '';
 
         let cache = [];
         // 把查出来的每一级的path和id都缓存一下
