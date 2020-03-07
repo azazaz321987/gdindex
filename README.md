@@ -1,5 +1,12 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
 
+> update 2020-3-7 :  
+- 添加搜索功能，搜索结果分页增量展示，并支持跳转到对应路径浏览
+- 搜索功能支持个人盘和团队盘全盘搜索
+- 搜索分页大小可配置，具体见 `index.js` 注释
+- 尝试解决移动端滚动到底部时的增量加载问题
+- UI优化，盘符选择改为下拉框展示
+
 > update 2020-3-5 :  
 - 文件列表页分页增量加载，支持自定义分页大小，多页内容的可以缓存，配置见 `index.js` 注释
 - 图片浏览页 下一张/上一张 导航
