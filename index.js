@@ -288,13 +288,16 @@ class googleDrive {
         this.root = authConfig.roots[order];
         this.url_path_prefix = `/${order}:`;
         this.authConfig = authConfig;
+        // TODO: 这些缓存的失效刷新策略，后期可以制定一下
         // path id
         this.paths = [];
         // path file
         this.files = [];
         // path pass
         this.passwords = [];
-
+        // id <-> path
+        this.id_path_cache = {};
+        this.id_path_cache[this.root['id']] = '/';
         this.paths["/"] = this.root['id'];
         if (this.root['pass'] != "") {
             this.passwords['/'] = this.root['pass'];
@@ -615,13 +618,33 @@ class googleDrive {
      * @returns {Promise<string>} 【注意】如果此id代表的项目不在目标gd盘下，那么此方法会返回空字符串""
      */
     async findPathById(child_id) {
-        const p_files = await this.findParentFilesRecursion(child_id);
-        if (!p_files || p_files.length < 1) return '';
-        const is_folder = p_files[0].mimeType === CONSTS.folder_mime_type;
-        let path = '/' + p_files.map(it => it.name).reverse().join('/');
-        if (is_folder) path += '/';
+        if (this.id_path_cache[child_id]) {
+            return this.id_path_cache[child_id];
+        }
 
-        return path;
+        const p_files = await this.findParentFilesRecursion(child_id);
+        const size = p_files.length;
+        if (!p_files || size < 1) return '';
+
+        let cache = [];
+        // 把查出来的每一级的path和id都缓存一下
+        p_files.forEach((value, idx) => {
+            const is_folder = idx === 0 ? (p_files[idx].mimeType === CONSTS.folder_mime_type) : true;
+            let path = '/' + p_files.slice(idx).map(it => it.name).reverse().join('/');
+            if (is_folder) path += '/';
+            cache.push({id: p_files[idx].id, path: path})
+        });
+
+        cache.forEach((obj) => {
+            this.id_path_cache[obj.id] = obj.path;
+            this.paths[obj.path] = obj.id
+        });
+
+        /*const is_folder = p_files[0].mimeType === CONSTS.folder_mime_type;
+        let path = '/' + p_files.map(it => it.name).reverse().join('/');
+        if (is_folder) path += '/';*/
+
+        return cache[0].path;
     }
 
 
