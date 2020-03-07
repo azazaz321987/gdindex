@@ -81,12 +81,20 @@ function nav(path) {
     var cur = window.current_drive_order || 0;
     html += `<a href="/${cur}:/" class="mdui-typo-headline folder">${document.siteName}</a>`;
     var names = window.drive_names;
-    html += `<button class="mdui-btn mdui-btn-raised" mdui-menu="{target: '#drive-names'}"><i class="mdui-icon mdui-icon-left material-icons">share</i> ${names[cur]}</button>`;
+    /*html += `<button class="mdui-btn mdui-btn-raised" mdui-menu="{target: '#drive-names'}"><i class="mdui-icon mdui-icon-left material-icons">share</i> ${names[cur]}</button>`;
     html += `<ul class="mdui-menu" id="drive-names" style="transform-origin: 0px 0px; position: fixed;">`;
     names.forEach((name, idx) => {
         html += `<li class="mdui-menu-item ${(idx === cur) ? 'mdui-list-item-active' : ''} "><a href="/${idx}:/" class="mdui-ripple">${name}</a></li>`;
     });
-    html += `</ul>`;
+    html += `</ul>`;*/
+
+    // 修改为 select
+    html += `<select class="mdui-select" onchange="window.location.href=this.value" mdui-select style="overflow:visible;">`;
+    names.forEach((name, idx) => {
+        html += `<option value="/${idx}:/"  ${idx === cur ? 'selected="selected"' : ''} >${name}</option>`;
+    });
+    html += `</select>`;
+
     if (!model.is_search_page) {
         var arr = path.trim('/').split('/');
         var p = '/';
@@ -122,6 +130,7 @@ function nav(path) {
     }
 
     $('#nav').html(html);
+    mdui.mutation();
     mdui.updateTextFields();
 }
 
