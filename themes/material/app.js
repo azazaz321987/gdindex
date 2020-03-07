@@ -19,6 +19,15 @@ function init() {
     $('body').html(html);
 }
 
+function getDocumentHeight() {
+    var D = document;
+    return Math.max(
+        D.body.scrollHeight, D.documentElement.scrollHeight,
+        D.body.offsetHeight, D.documentElement.offsetHeight,
+        D.body.clientHeight, D.documentElement.clientHeight
+    );
+}
+
 function render(path) {
     if (path.indexOf("?") > 0) {
         path = path.substr(0, path.indexOf("?"));
@@ -226,7 +235,7 @@ function list(path) {
                 // 绑定事件，如果还未绑定
                 $(window).on('scroll', function () {
                     var scrollTop = $(this).scrollTop();
-                    var scrollHeight = $(document).height();
+                    var scrollHeight = getDocumentHeight();
                     var windowHeight = $(this).height();
                     // 滚到底部
                     if (scrollTop + windowHeight == scrollHeight) {
@@ -459,7 +468,7 @@ function render_search_result_list() {
                 // 绑定事件，如果还未绑定
                 $(window).on('scroll', function () {
                     var scrollTop = $(this).scrollTop();
-                    var scrollHeight = $(document).height();
+                    var scrollHeight = getDocumentHeight();
                     var windowHeight = $(this).height();
                     // 滚到底部
                     if (scrollTop + windowHeight == scrollHeight) {
