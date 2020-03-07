@@ -1,6 +1,6 @@
 var authConfig = {
     "siteName": "GoIndex", // 网站名称
-    "version": "_3.5", // 程序版本
+    "version": "_3.7", // 程序版本
     // 此版本只支持 material
     "theme": "material", // material  classic
     "client_id": "202264815644.apps.googleusercontent.com",
@@ -11,6 +11,7 @@ var authConfig = {
      * id 可以是 团队盘id、子文件夹id、或者"root"（代表个人盘根目录）；
      * name 显示的名称
      * pass 为对应的密码，可以单独设置，不需要密码则设置为空字符串；
+     * 【注意】对于id设置为为子文件夹id的盘将不支持搜索功能（不影响其他盘）。
      */
     "roots": [
         {
@@ -32,16 +33,59 @@ var authConfig = {
     /**
      * 文件列表页面每页显示的数量。【推荐设置值为 100 到 1000 之间】；
      * 如果设置大于1000，会导致请求 drive api 时出错；
-     * 如果设置的值过小，会导致滚动条增量加载（分页加载）失效；
+     * 如果设置的值过小，会导致文件列表页面滚动条增量加载（分页加载）失效；
      * 此值的另一个作用是，如果目录内文件数大于此设置值（即需要多页展示的），将会对首次列目录结果进行缓存。
      */
-    "files_list_page_size": 500
+    "files_list_page_size": 500,
+    /**
+     * 搜索结果页面每页显示的数量。【推荐设置值为 50 到 1000 之间】；
+     * 如果设置大于1000，会导致请求 drive api 时出错；
+     * 如果设置的值过小，会导致搜索结果页面滚动条增量加载（分页加载）失效；
+     * 此值的大小影响搜索操作的响应速度。
+     */
+    "search_result_list_page_size": 50
+    // user_drive_real_root_id
+
 };
+
+
+/**
+ * global functions
+ */
+const FUNCS = {
+    /**
+     * 转换成针对谷歌搜索词法相对安全的搜索关键词
+     */
+    formatSearchKeyword: function (keyword) {
+        let nothing = "";
+        let space = " ";
+        if (!keyword) return nothing;
+        return keyword.replace(/(!=)|['"=<>/\\:]/g, nothing)
+            .replace(/[,，|(){}]/g, space)
+            .trim()
+    }
+
+};
+
+/**
+ * global consts
+ * @type {{folder_mime_type: string, default_file_fields: string, gd_root_type: {share_drive: number, user_drive: number, sub_folder: number}}}
+ */
+const CONSTS = new (class {
+    default_file_fields = 'parents,id,name,mimeType,modifiedTime,createdTime,fileExtension,size';
+    gd_root_type = {
+        user_drive: 0,
+        share_drive: 1,
+        sub_folder: 2
+    };
+    folder_mime_type = 'application/vnd.google-apps.folder';
+})();
+
 
 // gd instances
 var gds = [];
 
-function html(current_drive_order = 0) {
+function html(current_drive_order = 0, model = {}) {
     return `
 <!DOCTYPE html>
 <html>
@@ -51,9 +95,10 @@ function html(current_drive_order = 0) {
   <title>${authConfig.siteName}</title>
   <script>
     window.drive_names = JSON.parse('${JSON.stringify(authConfig.roots.map(it => it.name))}');
+    window.MODEL = JSON.parse('${JSON.stringify(model)}');
     window.current_drive_order = ${current_drive_order};
   </script>
-  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@_3.5/themes/${authConfig.theme}/app.js"></script>
+  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@_3.7/themes/${authConfig.theme}/app.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
 </head>
 <body>
@@ -73,7 +118,17 @@ addEventListener('fetch', event => {
 async function handleRequest(request) {
     if (gds.length === 0) {
         for (let i = 0; i < authConfig.roots.length; i++) {
-            gds.push(new googleDrive(authConfig, i))
+            const gd = new googleDrive(authConfig, i);
+            await gd.init();
+            gds.push(gd)
+        }
+        // 这个操作并行，提高效率
+        let tasks = [];
+        gds.forEach(gd => {
+            tasks.push(gd.initRootType());
+        });
+        for (let task of tasks) {
+            await task;
         }
     }
 
@@ -96,10 +151,46 @@ async function handleRequest(request) {
         // 后面可以找一个 favicon
         return new Response('', {status: 404})
     }
+
+    // 特殊命令格式
+    const command_reg = /^\/(?<num>\d+):(?<command>[a-zA-Z0-9]+)$/g;
+    const match = command_reg.exec(path);
+    if (match) {
+        const num = match.groups.num;
+        const order = Number(num);
+        if (order >= 0 && order < gds.length) {
+            gd = gds[order];
+        } else {
+            return redirectToIndexPage()
+        }
+        const command = match.groups.command;
+        // 搜索
+        if (command === 'search') {
+            if (request.method === 'POST') {
+                // 搜索结果
+                return handleSearch(request, gd);
+            } else {
+                const params = url.searchParams;
+                // 搜索页面
+                return new Response(html(gd.order, {
+                        q: params.get("q") || '',
+                        is_search_page: true,
+                        root_type: gd.root_type
+                    }),
+                    {
+                        status: 200,
+                        headers: {'Content-Type': 'text/html; charset=utf-8'}
+                    });
+            }
+        } else if (command === 'id2path' && request.method === 'POST') {
+            return handleId2Path(request, gd)
+        }
+    }
+
     // 期望的 path 格式
-    let reg = /^\/\d+:\/.*$/g;
+    const common_reg = /^\/\d+:\/.*$/g;
     try {
-        if (!path.match(reg)) {
+        if (!path.match(common_reg)) {
             return redirectToIndexPage();
         }
         let split = path.split("/");
@@ -121,7 +212,10 @@ async function handleRequest(request) {
     let action = url.searchParams.get('a');
 
     if (path.substr(-1) == '/' || action != null) {
-        return new Response(html(gd.order), {status: 200, headers: {'Content-Type': 'text/html; charset=utf-8'}});
+        return new Response(html(gd.order, {root_type: gd.root_type}), {
+            status: 200,
+            headers: {'Content-Type': 'text/html; charset=utf-8'}
+        });
     } else {
         if (path.split('/').pop().toLowerCase() == ".password") {
             return new Response("", {status: 404});
@@ -148,7 +242,7 @@ async function apiRequest(request, gd) {
 
         // check password
         let password = await deferred_pass;
-        console.log("dir password", password);
+        // console.log("dir password", password);
         if (password != undefined && password != null && password != "") {
             if (password.replace("\n", "") != form.get('password')) {
                 let html = `{"error": {"code": 401,"message": "password error."}}`;
@@ -163,6 +257,28 @@ async function apiRequest(request, gd) {
         let range = request.headers.get('Range');
         return new Response(JSON.stringify(file));
     }
+}
+
+// 处理 search
+async function handleSearch(request, gd) {
+    const option = {status: 200, headers: {'Access-Control-Allow-Origin': '*'}};
+    let form = await request.formData();
+    let search_result = await
+        gd.search(form.get('q') || '', form.get('page_token'), Number(form.get('page_index')));
+    return new Response(JSON.stringify(search_result), option);
+}
+
+/**
+ * 处理 id2path
+ * @param request 需要 id 参数
+ * @param gd
+ * @returns {Promise<Response>} 【注意】如果从前台接收的id代表的项目不在目标gd盘下，那么response会返回给前台一个空字符串""
+ */
+async function handleId2Path(request, gd) {
+    const option = {status: 200, headers: {'Access-Control-Allow-Origin': '*'}};
+    let form = await request.formData();
+    let path = await gd.findPathById(form.get('id'));
+    return new Response(path || '', option);
 }
 
 class googleDrive {
@@ -183,7 +299,44 @@ class googleDrive {
         if (this.root['pass'] != "") {
             this.passwords['/'] = this.root['pass'];
         }
-        this.accessToken();
+        // this.init();
+    }
+
+    /**
+     * 初次授权；然后获取 user_drive_real_root_id
+     * @returns {Promise<void>}
+     */
+    async init() {
+        await this.accessToken();
+        /*await (async () => {
+            // 只获取1次
+            if (authConfig.user_drive_real_root_id) return;
+            const root_obj = await (gds[0] || this).findItemById('root');
+            if (root_obj && root_obj.id) {
+                authConfig.user_drive_real_root_id = root_obj.id
+            }
+        })();*/
+        // 等待 user_drive_real_root_id ，只获取1次
+        if (authConfig.user_drive_real_root_id) return;
+        const root_obj = await (gds[0] || this).findItemById('root');
+        if (root_obj && root_obj.id) {
+            authConfig.user_drive_real_root_id = root_obj.id
+        }
+    }
+
+    /**
+     * 获取根目录类型，设置到 root_type
+     * @returns {Promise<void>}
+     */
+    async initRootType() {
+        const root_id = this.root['id'];
+        const types = CONSTS.gd_root_type;
+        if (root_id === 'root' || root_id === authConfig.user_drive_real_root_id) {
+            this.root_type = types.user_drive;
+        } else {
+            const obj = await this.getShareDriveObjById(root_id);
+            this.root_type = obj ? types.share_drive : types.sub_folder;
+        }
     }
 
     async down(id, range = '') {
@@ -205,9 +358,9 @@ class googleDrive {
         let name = arr.pop();
         name = decodeURIComponent(name).replace(/\'/g, "\\'");
         let dir = arr.join('/') + '/';
-        console.log(name, dir);
+        // console.log(name, dir);
         let parent = await this.findPathId(dir);
-        console.log(parent);
+        // console.log(parent);
         let url = 'https://www.googleapis.com/drive/v3/files';
         let params = {'includeItemsFromAllDrives': true, 'supportsAllDrives': true};
         params.q = `'${parent}' in parents and name = '${name}' and trashed = false`;
@@ -216,7 +369,7 @@ class googleDrive {
         let requestOption = await this.requestOption();
         let response = await fetch(url, requestOption);
         let obj = await response.json();
-        console.log(obj);
+        // console.log(obj);
         return obj.files[0];
     }
 
@@ -258,7 +411,7 @@ class googleDrive {
 
 
     async _ls(parent, page_token = null, page_index = 0) {
-        console.log("_ls", parent);
+        // console.log("_ls", parent);
 
         if (parent == undefined) {
             return null;
@@ -305,7 +458,7 @@ class googleDrive {
             return this.passwords[path];
         }
 
-        console.log("load", path, ".password", this.passwords[path]);
+        // console.log("load", path, ".password", this.passwords[path]);
 
         let file = await this.file(path + '.password');
         if (file == undefined) {
@@ -320,6 +473,166 @@ class googleDrive {
         return this.passwords[path];
     }
 
+
+    /**
+     * 通过 id 获取 share drive 信息
+     * @param any_id
+     * @returns {Promise<null|{id}|any>} 任何非正常情况都返回 null
+     */
+    async getShareDriveObjById(any_id) {
+        if (!any_id) return null;
+        if ('string' !== typeof any_id) return null;
+
+        let url = `https://www.googleapis.com/drive/v3/drives/${any_id}`;
+        let requestOption = await this.requestOption();
+        let res = await fetch(url, requestOption);
+        let obj = await res.json();
+        if (obj && obj.id) return obj;
+
+        return null
+    }
+
+
+    /**
+     * 搜索
+     * @returns {Promise<{data: null, nextPageToken: null, curPageIndex: number}>}
+     */
+    async search(origin_keyword, page_token = null, page_index = 0) {
+        const types = CONSTS.gd_root_type;
+        const is_user_drive = this.root_type === types.user_drive;
+        const is_share_drive = this.root_type === types.share_drive;
+
+        const empty_result = {
+            nextPageToken: null,
+            curPageIndex: page_index,
+            data: null
+        };
+
+        if (!is_user_drive && !is_share_drive) {
+            return empty_result;
+        }
+        let keyword = FUNCS.formatSearchKeyword(origin_keyword);
+        if (!keyword) {
+            // 关键词为空，返回
+            return empty_result;
+        }
+        let words = keyword.split(/\s+/);
+        let name_search_str = `name contains '${words.join("' AND name contains '")}'`;
+
+        // corpora 为 user 是个人盘 ，为 drive 是团队盘。配合 driveId
+        let params = {};
+        if (is_user_drive) {
+            params.corpora = 'user'
+        }
+        if (is_share_drive) {
+            params.corpora = 'drive';
+            params.driveId = this.root.id;
+            // This parameter will only be effective until June 1, 2020. Afterwards shared drive items will be included in the results.
+            params.includeItemsFromAllDrives = true;
+            params.supportsAllDrives = true;
+        }
+        if (page_token) {
+            params.pageToken = page_token;
+        }
+        params.q = `trashed = false AND name !='.password' AND (${name_search_str})`;
+        params.fields = "nextPageToken, files(id, name, mimeType, size , modifiedTime)";
+        params.pageSize = this.authConfig.search_result_list_page_size;
+        // params.orderBy = 'folder,name,modifiedTime desc';
+
+        let url = 'https://www.googleapis.com/drive/v3/files';
+        url += '?' + this.enQuery(params);
+        // console.log(params)
+        let requestOption = await this.requestOption();
+        let response = await fetch(url, requestOption);
+        let res_obj = await response.json();
+
+        return {
+            nextPageToken: res_obj.nextPageToken || null,
+            curPageIndex: page_index,
+            data: res_obj
+        };
+    }
+
+
+    /**
+     * 一层一层的向上获取这个文件或文件夹的上级文件夹的 file 对象。注意：会很慢！！！
+     * 最多向上寻找到当前 gd 对象的根目录 (root id)
+     * 只考虑一条单独的向上链。
+     * 【注意】如果此id代表的项目不在目标gd盘下，那么此函数会返回null
+     *
+     * @param child_id
+     * @param contain_myself
+     * @returns {Promise<[]>}
+     */
+    async findParentFilesRecursion(child_id, contain_myself = true) {
+        const gd = this;
+        const gd_root_id = gd.root.id;
+        const user_drive_real_root_id = authConfig.user_drive_real_root_id;
+        const is_user_drive = gd.root_type === CONSTS.gd_root_type.user_drive;
+
+        // 自下向上查询的终点目标id
+        const target_top_id = is_user_drive ? user_drive_real_root_id : gd_root_id;
+        const fields = CONSTS.default_file_fields;
+
+        // [{},{},...]
+        const parent_files = [];
+        let meet_top = false;
+
+        async function addItsFirstParent(file_obj) {
+            if (!file_obj) return;
+            if (!file_obj.parents) return;
+            if (file_obj.parents.length < 1) return;
+
+            // ['','',...]
+            let p_ids = file_obj.parents;
+            if (p_ids && p_ids.length > 0) {
+                // its first parent
+                const first_p_id = p_ids[0];
+                if (first_p_id === target_top_id) {
+                    meet_top = true;
+                    return;
+                }
+                const p_file_obj = await gd.findItemById(first_p_id);
+                if (p_file_obj && p_file_obj.id) {
+                    parent_files.push(p_file_obj);
+                    await addItsFirstParent(p_file_obj);
+                }
+            }
+        }
+
+        const child_obj = await gd.findItemById(child_id);
+        if (contain_myself) {
+            parent_files.push(child_obj);
+        }
+        await addItsFirstParent(child_obj);
+
+        return meet_top ? parent_files : null
+    }
+
+    /**
+     * 获取相对于本盘根目录的path
+     * @param child_id
+     * @returns {Promise<string>} 【注意】如果此id代表的项目不在目标gd盘下，那么此方法会返回空字符串""
+     */
+    async findPathById(child_id) {
+        const p_files = await this.findParentFilesRecursion(child_id);
+        if (!p_files || p_files.length < 1) return '';
+        const is_folder = p_files[0].mimeType === CONSTS.folder_mime_type;
+        let path = '/' + p_files.map(it => it.name).reverse().join('/');
+        if (is_folder) path += '/';
+
+        return path;
+    }
+
+
+    // 根据id获取file item
+    async findItemById(id) {
+        const is_user_drive = this.root_type === CONSTS.gd_root_type.user_drive;
+        let url = `https://www.googleapis.com/drive/v3/files/${id}?fields=${CONSTS.default_file_fields}${is_user_drive ? '' : '&supportsAllDrives=true'}`;
+        let requestOption = await this.requestOption();
+        let res = await fetch(url, requestOption);
+        return await res.json()
+    }
 
     async findPathId(path) {
         let c_path = '/';
@@ -339,14 +652,14 @@ class googleDrive {
                 break;
             }
         }
-        console.log(this.paths);
+        // console.log(this.paths);
         return this.paths[path];
     }
 
     async _findDirId(parent, name) {
         name = decodeURIComponent(name).replace(/\'/g, "\\'");
 
-        console.log("_findDirId", parent, name);
+        // console.log("_findDirId", parent, name);
 
         if (parent == undefined) {
             return null;
