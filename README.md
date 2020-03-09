@@ -1,5 +1,11 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
 
+**此分支版本为albany校友版（定制一些搜索功能），非albany校友 或者 普通用户，请使用支持多盘和 Drive API 搜索功能的普通版：** https://github.com/yanzai/goindex 
+
+> update 2020-3-9 :  
+- flac播放支持
+- ikea搜索支持
+
 > update 2020-3-7 :  
 - 添加搜索功能，搜索结果分页增量展示，并支持跳转到对应路径浏览
 - 搜索功能支持个人盘和团队盘全盘搜索
