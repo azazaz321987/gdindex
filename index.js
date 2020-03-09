@@ -1,6 +1,6 @@
 var authConfig = {
     "siteName": "GoIndex", // 网站名称
-    "version": "_3.7", // 程序版本
+    "version": "albany_3.9", // 程序版本
     // 此版本只支持 material
     "theme": "material", // material  classic
     "client_id": "202264815644.apps.googleusercontent.com",
@@ -12,6 +12,9 @@ var authConfig = {
      * name 显示的名称
      * pass 为对应的密码，可以单独设置，不需要密码则设置为空字符串；
      * 【注意】对于id设置为为子文件夹id的盘将不支持搜索功能（不影响其他盘）。
+     * 【定制化搜索】search_type 目前支持值："ikea"
+     * search_type 必须配合下面的 diy_search 配置项一起使用
+     * 不需要定制化搜索的盘，设置 search_type 为空字符串，或直接删除 search_type 这一行。
      */
     "roots": [
         {
@@ -22,7 +25,8 @@ var authConfig = {
         {
             id: "drive_id",
             name: "团队盘1",
-            pass: "111"
+            pass: "111",
+            search_type: "ikea"
         },
         {
             id: "folder_id",
@@ -43,8 +47,17 @@ var authConfig = {
      * 如果设置的值过小，会导致搜索结果页面滚动条增量加载（分页加载）失效；
      * 此值的大小影响搜索操作的响应速度。
      */
-    "search_result_list_page_size": 50
+    "search_result_list_page_size": 50,
     // user_drive_real_root_id
+    diy_search: {
+        ikea: {
+            search_result_list_page_size: 100,
+            search_url: 'https://.../_search',
+            basic_auth_username: '',
+            basic_auth_password: ''
+        }
+        // ...
+    }
 
 };
 
@@ -98,7 +111,7 @@ function html(current_drive_order = 0, model = {}) {
     window.MODEL = JSON.parse('${JSON.stringify(model)}');
     window.current_drive_order = ${current_drive_order};
   </script>
-  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@_3.7/themes/${authConfig.theme}/app.js"></script>
+  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@albany_3.9/themes/${authConfig.theme}/app.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
 </head>
 <body>
@@ -153,7 +166,7 @@ async function handleRequest(request) {
     }
 
     // 特殊命令格式
-    const command_reg = /^\/(?<num>\d+):(?<command>[a-zA-Z0-9]+)$/g;
+    const command_reg = /^\/(?<num>\d+):(?<command>[a-z_A-Z0-9]+)$/g;
     const match = command_reg.exec(path);
     if (match) {
         const num = match.groups.num;
@@ -165,17 +178,21 @@ async function handleRequest(request) {
         }
         const command = match.groups.command;
         // 搜索
-        if (command === 'search') {
+        if (command && command.endsWith("search")) {
             if (request.method === 'POST') {
                 // 搜索结果
-                return handleSearch(request, gd);
+                if (command === 'search') return handleSearch(request, gd);
+                if (command === 'ikea_search') return handleIkeaSearch(request, gd);
+                // add more ...
             } else {
                 const params = url.searchParams;
                 // 搜索页面
                 return new Response(html(gd.order, {
                         q: params.get("q") || '',
                         is_search_page: true,
-                        root_type: gd.root_type
+                        root_type: gd.root_type,
+                        search_type: gd.root.search_type || '',
+                        search_type_prefix_symbol: gd.root.search_type ? (gd.root.search_type + "_") : ''
                     }),
                     {
                         status: 200,
@@ -212,7 +229,11 @@ async function handleRequest(request) {
     let action = url.searchParams.get('a');
 
     if (path.substr(-1) == '/' || action != null) {
-        return new Response(html(gd.order, {root_type: gd.root_type}), {
+        return new Response(html(gd.order, {
+            root_type: gd.root_type,
+            search_type: gd.root.search_type || '',
+            search_type_prefix_symbol: gd.root.search_type ? (gd.root.search_type + "_") : ''
+        }), {
             status: 200,
             headers: {'Content-Type': 'text/html; charset=utf-8'}
         });
@@ -265,6 +286,15 @@ async function handleSearch(request, gd) {
     let form = await request.formData();
     let search_result = await
         gd.search(form.get('q') || '', form.get('page_token'), Number(form.get('page_index')));
+    return new Response(JSON.stringify(search_result), option);
+}
+
+// 处理 ikea_search
+async function handleIkeaSearch(request, gd) {
+    const option = {status: 200, headers: {'Access-Control-Allow-Origin': '*'}};
+    let form = await request.formData();
+    let search_result = await
+        gd.ikea_search(form.get('q') || '', Number(form.get('page_index')));
     return new Response(JSON.stringify(search_result), option);
 }
 
@@ -553,6 +583,99 @@ class googleDrive {
             nextPageToken: res_obj.nextPageToken || null,
             curPageIndex: page_index,
             data: res_obj
+        };
+    }
+
+
+    /**
+     *
+     * @param origin_keyword
+     * @param page_index
+     * @returns {Promise<{data: null, nextPageToken: null, curPageIndex: number}|{data: {files: []}, nextPageToken: *, curPageIndex: number}>}
+     */
+    async ikea_search(origin_keyword, page_index = 0) {
+        const empty_result = {
+            nextPageToken: null,
+            curPageIndex: page_index,
+            data: null
+        };
+
+        let keyword = (origin_keyword || '').trim();
+        if (!keyword) {
+            // 关键词为空，返回
+            return empty_result;
+        }
+
+        const ikea_config = this.authConfig.diy_search.ikea;
+        const page_size = ikea_config.search_result_list_page_size;
+        const from_idx = page_size * page_index;
+        let response = await fetch(ikea_config.search_url, {
+            method: 'POST',
+            headers: {
+                "Authorization": `Basic ${btoa(ikea_config.basic_auth_username + ':' + ikea_config.basic_auth_password)}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                "size": page_size,
+                "from": from_idx,
+                "query": {
+                    "bool": {
+                        "must": {
+                            "multi_match": {
+                                "query": keyword,
+                                "type": "cross_fields",
+                                "fields": ["title", "subtitle"],
+                                "operator": "and"
+                            }
+                        }
+                    }
+                }
+            })
+        });
+        let res_obj = await response.json();
+        // console.log(res_obj)
+
+        // 定制化返回
+        if (!res_obj.hits) return empty_result;
+        let data_arr = [];
+        let has_next_page = false;
+        try {
+            has_next_page = from_idx + res_obj.hits.hits.length < res_obj.hits.total.value;
+            res_obj.hits.hits.forEach(obj => {
+                let doc = obj['_source'];
+                let name_reg = /^.+-(?<ep>\d+)(\..+)?$/g;
+                let match = name_reg.exec(doc.Name);
+                let title = doc.title;
+                if (doc.IsDir) {/* do nothing*/
+                } else if (match) {
+                    // 有ep的
+                    let ep = match.groups.ep;
+                    let prefix = (ep !== undefined) ? `${doc.censored_id}-${ep}` : doc.censored_id;
+                    title = doc.title.replace(doc.Path, prefix);
+                } else {
+                    title = doc.title.replace(doc.Path, doc.censored_id);
+                }
+                let a = {
+                    "path": `/${doc.Path}${doc.IsDir ? '/' : ''}`,
+                    "name": doc.Name,
+                    "size": doc.Size,
+                    "mimeType": doc.MimeType,
+                    "isDir": doc.IsDir,
+                    "title": title,
+                    "subtitle": doc.subtitle
+                };
+                data_arr.push(a);
+            });
+        } catch (e) {
+            console.error(e);
+            return empty_result
+        }
+
+        return {
+            // 这个 pageToken 只作为前台判断是否有下一页的标志
+            nextPageToken: has_next_page ? "yes" : null,
+            curPageIndex: page_index,
+            data: {files: data_arr}
         };
     }
 

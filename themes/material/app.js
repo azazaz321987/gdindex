@@ -29,6 +29,7 @@ function getDocumentHeight() {
 }
 
 function render(path) {
+    var model = window.MODEL;
     if (path.indexOf("?") > 0) {
         path = path.substr(0, path.indexOf("?"));
     }
@@ -36,7 +37,7 @@ function render(path) {
     nav(path);
     // .../0: 这种
     var reg = /\/\d+:$/g;
-    if (window.MODEL.is_search_page) {
+    if (model.is_search_page) {
         // 用来存储一些滚动事件的状态
         window.scroll_status = {
             // 滚动事件是否已经绑定
@@ -44,7 +45,8 @@ function render(path) {
             // "滚动到底部，正在加载更多数据" 事件的锁
             loading_lock: false
         };
-        render_search_result_list()
+        // window[`render_${model.search_type_prefix_symbol}search_result_list`]();
+        render_search_result_list();
     } else if (path.match(reg) || path.substr(-1) == '/') {
         // 用来存储一些滚动事件的状态
         window.scroll_status = {
@@ -117,14 +119,14 @@ function nav(path) {
             <button class="mdui-textfield-icon mdui-btn mdui-btn-icon" onclick="if($('#search_bar').hasClass('mdui-textfield-expanded') && $('#search_bar_form>input').val()) $('#search_bar_form').submit();">
                 <i class="mdui-icon material-icons">search</i>
             </button>
-            <form id="search_bar_form" method="get" action="/${cur}:search">
+            <form id="search_bar_form" method="get" action="/${cur}:${model.search_type_prefix_symbol}search">
             <input class="mdui-textfield-input" type="text" name="q" placeholder="Search in current drive" value="${search_text}"/>
             </form>
             <button class="mdui-textfield-close mdui-btn mdui-btn-icon"><i class="mdui-icon material-icons">close</i></button>
         </div>`;
 
-    // 个人盘 或 团队盘
-    if (model.root_type < 2) {
+    // 定制化的搜索。或者 个人盘/团队盘 的普通搜索。
+    if (model.search_type || model.root_type < 2) {
         // 显示搜索框
         html += search_bar;
     }
@@ -159,17 +161,18 @@ function requestListPath(path, params, resultCallback, authErrorCallback) {
 }
 
 /**
- * 搜索 POST 请求
+ * 搜索 POST 请求。【普通搜索】 和 【定制搜索】 通用。
  * @param params Form params
  * @param resultCallback Success callback
  */
 function requestSearch(params, resultCallback) {
+    var search_command = `${window.MODEL.search_type_prefix_symbol}search`;
     var p = {
         q: params['q'] || null,
         page_token: params['page_token'] || null,
         page_index: params['page_index'] || 0
     };
-    $.post(`/${window.current_drive_order}:search`, p, function (data, status) {
+    $.post(`/${window.current_drive_order}:${search_command}`, p, function (data, status) {
         var res = jQuery.parseJSON(data);
         if (res && res.data) {
             if (resultCallback) resultCallback(res, p)
@@ -411,10 +414,14 @@ function append_files_to_list(path, files) {
 }
 
 /**
- * 渲染搜索结果列表。有大量重复代码，但是里面有不一样的逻辑，暂时先这样分开弄吧
+ * 渲染搜索结果列表。有大量重复代码，但是里面有不一样的逻辑，暂时先这样分开弄吧.
+ * 【普通搜索】 和 【定制搜索】 暂通用
  */
 function render_search_result_list() {
-    var content = `
+    var search_type = window.MODEL.search_type;
+    var content = '';
+    if (!search_type) {
+        content = `
 	<div id="head_md" class="mdui-typo" style="display:none;padding: 20px 0;"></div>
 
 	 <div class="mdui-row"> 
@@ -442,6 +449,36 @@ function render_search_result_list() {
 	 </div>
 	 <div id="readme_md" class="mdui-typo" style="display:none; padding: 20px 0;"></div>
 	`;
+    } else if (search_type === 'ikea') {
+        content = `
+	<div id="head_md" class="mdui-typo" style="display:none;padding: 20px 0;"></div>
+
+	 <div class="mdui-row"> 
+	  <ul class="mdui-list"> 
+	   <li class="mdui-list-item th"> 
+	    <div class="mdui-col-xs-12 mdui-col-sm-6">
+	     标题
+	<i class="mdui-icon material-icons icon-sort" data-sort="title" data-order="more">expand_more</i>
+	    </div> 
+	    <div class="mdui-col-sm-5 ">
+	     副标题
+	<i class="mdui-icon material-icons icon-sort" data-sort="subtitle" data-order="downward">expand_more</i>
+	    </div> 
+	    <div class="mdui-col-sm-1 mdui-text-right">
+	     大小
+	<i class="mdui-icon material-icons icon-sort" data-sort="size" data-order="downward">expand_more</i>
+	    </div> 
+	    </li> 
+	  </ul> 
+	 </div> 
+	 <div class="mdui-row"> 
+	  <ul id="list" class="mdui-list"> 
+	  </ul> 
+	  <div id="count" class="mdui-hidden mdui-center mdui-text-center mdui-m-b-3 mdui-typo-subheading mdui-text-color-blue-grey-500">共 <span class="number"></span> 项</div>
+	 </div>
+	 <div id="readme_md" class="mdui-typo" style="display:none; padding: 20px 0;"></div>
+	`;
+    }
     $('#content').html(content);
 
     $('#list').html(`<div class="mdui-progress"><div class="mdui-progress-indeterminate"></div></div>`);
@@ -469,10 +506,10 @@ function render_search_result_list() {
             $(window).off('scroll');
             window.scroll_status.event_bound = false;
             window.scroll_status.loading_lock = false;
-            append_search_result_to_list(res['data']['files']);
+            window[`append_${window.MODEL.search_type_prefix_symbol}search_result_to_list`](res['data']['files']);
         } else {
             // 如果不是最后一页，append数据 ，并绑定 scroll 事件（如果还未绑定），更新 scroll_status
-            append_search_result_to_list(res['data']['files']);
+            window[`append_${window.MODEL.search_type_prefix_symbol}search_result_to_list`](res['data']['files']);
             if (window.scroll_status.event_bound !== true) {
                 // 绑定事件，如果还未绑定
                 $(window).on('scroll', function () {
@@ -522,7 +559,7 @@ function render_search_result_list() {
 }
 
 /**
- * 追加新一页的搜索结果
+ * 追加新一页的搜索结果。【普通搜索】
  * @param files
  */
 function append_search_result_to_list(files) {
@@ -578,7 +615,7 @@ function append_search_result_to_list(files) {
 }
 
 /**
- * 搜索结果项目点击事件
+ * 搜索结果项目点击事件。【普通搜索】
  * @param a_ele 点击的元素
  */
 function onSearchResultItemClick(a_ele) {
@@ -634,6 +671,69 @@ function onSearchResultItemClick(a_ele) {
         });
     })
 }
+
+// 追加 ikea 新一页的搜索结果
+function append_ikea_search_result_to_list(files) {
+    var $list = $('#list');
+    // 是最后一页数据了吗？
+    var is_lastpage_loaded = null === $list.data('nextPageToken');
+    // var is_firstpage = '0' == $list.data('curPageIndex');
+
+    html = "";
+
+    for (i in files) {
+        var item = files[i];
+        if (item['size'] == undefined) {
+            item['size'] = "";
+        }
+
+        // item['modifiedTime'] = utc2beijing(item['modifiedTime']);
+        item['size'] = formatFileSize(item['size']);
+        if (item['isDir']) {
+            html += `<li class="mdui-list-item mdui-ripple"><a data-path="${item['path']}" onclick="onIkeaSearchResultItemClick(this)" class="folder">
+	            <div class="mdui-col-xs-12 mdui-col-sm-6 mdui-text-truncate">
+	            <i class="mdui-icon material-icons">folder_open</i>
+	             ${item.title}
+	            </div>
+	            <div class="mdui-col-sm-5 mdui-text-truncate">${item.subtitle}</div>
+	            <div class="mdui-col-sm-1 mdui-text-right">${item['size']}</div>
+	            </a>
+	        </li>`;
+        } else {
+            var c = "file";
+            var ext = item.name.split('.').pop().toLowerCase();
+            if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|".indexOf(`|${ext}|`) >= 0) {
+                c += " view";
+            }
+            html += `<li class="mdui-list-item file mdui-ripple" target="_blank"><a data-path="${item['path']}" gd-type="${item.mimeType}" onclick="onIkeaSearchResultItemClick(this)" class="${c}">
+	          <div class="mdui-col-xs-12 mdui-col-sm-6 mdui-text-truncate">
+	          <i class="mdui-icon material-icons">insert_drive_file</i>
+	            ${item.title}
+	          </div>
+	          <div class="mdui-col-sm-5 mdui-text-truncate">${item.subtitle}</div>
+	          <div class="mdui-col-sm-1 mdui-text-right">${item['size']}</div>
+	          </a>
+	      </li>`;
+        }
+    }
+
+    // 是第1页时，去除横向loading条
+    $list.html(($list.data('curPageIndex') == '0' ? '' : $list.html()) + html);
+    // 是最后一页时，统计并显示出总项目数
+    if (is_lastpage_loaded) {
+        $('#count').removeClass('mdui-hidden').find('.number').text($list.find('li.mdui-list-item').length);
+    }
+}
+
+// 点击 ikea 搜索结果项目
+function onIkeaSearchResultItemClick(a_ele) {
+    var me = $(a_ele);
+    var can_preview = me.hasClass('view');
+    var cur = window.current_drive_order;
+    var href = `/${cur}:${me.data('path')}${can_preview ? '?a=view' : ''}`;
+    window.location.href = href
+}
+
 
 function get_file(path, file, callback) {
     var key = "file_path_" + path + file['modifiedTime'];
