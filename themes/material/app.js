@@ -674,6 +674,7 @@ function onSearchResultItemClick(a_ele) {
 
 // 追加 ikea 新一页的搜索结果
 function append_ikea_search_result_to_list(files) {
+    var cur = window.current_drive_order;
     var $list = $('#list');
     // 是最后一页数据了吗？
     var is_lastpage_loaded = null === $list.data('nextPageToken');
@@ -690,7 +691,7 @@ function append_ikea_search_result_to_list(files) {
         // item['modifiedTime'] = utc2beijing(item['modifiedTime']);
         item['size'] = formatFileSize(item['size']);
         if (item['isDir']) {
-            html += `<li class="mdui-list-item mdui-ripple"><a data-path="${item['path']}" onclick="onIkeaSearchResultItemClick(this)" class="folder">
+            html += `<li class="mdui-list-item mdui-ripple"><a data-path="${item['path']}" class="folder">
 	            <div class="mdui-col-xs-12 mdui-col-sm-5 mdui-text-truncate">
 	            <i class="mdui-icon material-icons">folder_open</i>
 	             ${item.title}
@@ -705,7 +706,7 @@ function append_ikea_search_result_to_list(files) {
             if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|flac|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|".indexOf(`|${ext}|`) >= 0) {
                 c += " view";
             }
-            html += `<li class="mdui-list-item file mdui-ripple" target="_blank"><a data-path="${item['path']}" gd-type="${item.mimeType}" onclick="onIkeaSearchResultItemClick(this)" class="${c}">
+            html += `<li class="mdui-list-item file mdui-ripple" target="_blank"><a data-path="${item['path']}" gd-type="${item.mimeType}" class="${c}">
 	          <div class="mdui-col-xs-12 mdui-col-sm-5 mdui-text-truncate">
 	          <i class="mdui-icon material-icons">insert_drive_file</i>
 	            ${item.title}
@@ -723,16 +724,17 @@ function append_ikea_search_result_to_list(files) {
     if (is_lastpage_loaded) {
         $('#count').removeClass('mdui-hidden').find('.number').text($list.find('li.mdui-list-item').length);
     }
+
+    $('li.mdui-list-item>a[data-path]').each(function () {
+        var me = $(this);
+        var can_preview = me.hasClass('view');
+        me.attr('href', `/${cur}:${me.data('path')}${can_preview ? '?a=view' : ''}`);
+    });
+
 }
 
-// 点击 ikea 搜索结果项目
-function onIkeaSearchResultItemClick(a_ele) {
-    var me = $(a_ele);
-    var can_preview = me.hasClass('view');
-    var cur = window.current_drive_order;
-    var href = `/${cur}:${me.data('path')}${can_preview ? '?a=view' : ''}`;
-    window.location.href = href
-}
+// 点击 ikea 搜索结果项目。暂时没用
+// function onIkeaSearchResultItemClick(a_ele) {}
 
 
 function get_file(path, file, callback) {
