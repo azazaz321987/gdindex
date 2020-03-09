@@ -456,7 +456,7 @@ function render_search_result_list() {
 	 <div class="mdui-row"> 
 	  <ul class="mdui-list"> 
 	   <li class="mdui-list-item th"> 
-	    <div class="mdui-col-xs-12 mdui-col-sm-6">
+	    <div class="mdui-col-xs-12 mdui-col-sm-5">
 	     标题
 	<i class="mdui-icon material-icons icon-sort" data-sort="title" data-order="more">expand_more</i>
 	    </div> 
@@ -464,7 +464,7 @@ function render_search_result_list() {
 	     副标题
 	<i class="mdui-icon material-icons icon-sort" data-sort="subtitle" data-order="downward">expand_more</i>
 	    </div> 
-	    <div class="mdui-col-sm-1 mdui-text-right">
+	    <div class="mdui-col-sm-2 mdui-text-right">
 	     大小
 	<i class="mdui-icon material-icons icon-sort" data-sort="size" data-order="downward">expand_more</i>
 	    </div> 
@@ -691,12 +691,12 @@ function append_ikea_search_result_to_list(files) {
         item['size'] = formatFileSize(item['size']);
         if (item['isDir']) {
             html += `<li class="mdui-list-item mdui-ripple"><a data-path="${item['path']}" onclick="onIkeaSearchResultItemClick(this)" class="folder">
-	            <div class="mdui-col-xs-12 mdui-col-sm-6 mdui-text-truncate">
+	            <div class="mdui-col-xs-12 mdui-col-sm-5 mdui-text-truncate">
 	            <i class="mdui-icon material-icons">folder_open</i>
 	             ${item.title}
 	            </div>
 	            <div class="mdui-col-sm-5 mdui-text-truncate">${item.subtitle}</div>
-	            <div class="mdui-col-sm-1 mdui-text-right">${item['size']}</div>
+	            <div class="mdui-col-sm-2 mdui-text-right">${item['size']}</div>
 	            </a>
 	        </li>`;
         } else {
@@ -706,12 +706,12 @@ function append_ikea_search_result_to_list(files) {
                 c += " view";
             }
             html += `<li class="mdui-list-item file mdui-ripple" target="_blank"><a data-path="${item['path']}" gd-type="${item.mimeType}" onclick="onIkeaSearchResultItemClick(this)" class="${c}">
-	          <div class="mdui-col-xs-12 mdui-col-sm-6 mdui-text-truncate">
+	          <div class="mdui-col-xs-12 mdui-col-sm-5 mdui-text-truncate">
 	          <i class="mdui-icon material-icons">insert_drive_file</i>
 	            ${item.title}
 	          </div>
 	          <div class="mdui-col-sm-5 mdui-text-truncate">${item.subtitle}</div>
-	          <div class="mdui-col-sm-1 mdui-text-right">${item['size']}</div>
+	          <div class="mdui-col-sm-2 mdui-text-right">${item['size']}</div>
 	          </a>
 	      </li>`;
         }
