@@ -1,5 +1,8 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
 
+> update 2020-3-9 :
+- flac file play support
+
 > update 2020-3-7 :  
 - 添加搜索功能，搜索结果分页增量展示，并支持跳转到对应路径浏览
 - 搜索功能支持个人盘和团队盘全盘搜索
