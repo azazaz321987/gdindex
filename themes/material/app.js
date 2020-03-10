@@ -10,7 +10,7 @@ function init() {
     $('body').addClass("mdui-theme-primary-blue-grey mdui-theme-accent-blue");
     var html = `
 <header class="mdui-appbar mdui-color-theme"> 
-   <div id="nav" class="mdui-toolbar mdui-container"> 
+   <div id="nav" class="mdui-toolbar mdui-container-fluid">
    </div> 
 </header>
 <div id="content" class="mdui-container"> 
@@ -89,7 +89,7 @@ function nav(path) {
     html += `</ul>`;*/
 
     // 修改为 select
-    html += `<select class="mdui-select" onchange="window.location.href=this.value" mdui-select style="overflow:visible;">`;
+    html += `<select class="mdui-select" onchange="window.location.href=this.value" mdui-select style="overflow:visible;padding-left:8px;padding-right:8px">`;
     names.forEach((name, idx) => {
         html += `<option value="/${idx}:/"  ${idx === cur ? 'selected="selected"' : ''} >${name}</option>`;
     });
