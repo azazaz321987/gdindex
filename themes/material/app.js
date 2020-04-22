@@ -19,6 +19,14 @@ function init() {
     $('body').html(html);
 }
 
+const Os = {
+    isWindows: navigator.platform.toUpperCase().indexOf('WIN') > -1, // .includes
+    isMac: navigator.platform.toUpperCase().indexOf('MAC') > -1,
+    isMacLike: /(Mac|iPhone|iPod|iPad)/i.test(navigator.platform),
+    isIos: /(iPhone|iPod|iPad)/i.test(navigator.platform),
+    isMobile: /Android|webOS|iPhone|iPad|iPod|iOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+};
+
 function getDocumentHeight() {
     var D = document;
     return Math.max(
@@ -730,9 +738,18 @@ function file_code(path) {
 // 文件展示 视频 |mp4|webm|avi|
 function file_video(path) {
     var url = window.location.origin + path;
-    var playBtn = `<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="potplayer://${url}"><i class="mdui-icon material-icons">&#xe038;</i>在 potplayer 中播放</a>`;
-    if (/(iPhone|iPad|iPod|iOS|Android)/i.test(navigator.userAgent)) { //移动端
-        playBtn = `	<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${path};end"><i class="mdui-icon material-icons">&#xe039;</i>在mxplayer中播放</a>`;
+    let playBtn = `<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="potplayer://${url}"><i class="mdui-icon material-icons">&#xe038;</i>在 potplayer 中播放</a>`;
+    if (Os.isMacLike)
+        playBtn = `<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="nplayer-${url}"><i class="mdui-icon material-icons">&#xe037;</i>用 nPlayer 播放</a>`;
+    else if (Os.isMobile) {
+        playBtn = `
+      <button class="mdui-btn mdui-ripple mdui-color-theme-accent" mdui-menu="{target:'#mx-items'}">
+        <i class="mdui-icon material-icons">&#xe039;</i>用 mxplayer 播放<i class="mdui-icon material-icons">&#xe5cf;</i>
+      </button>
+      <ul class="mdui-menu" id="mx-items">
+        <li class="mdui-menu-item"><a href="intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${path};end" class="mdui-ripple">MXPlayer(Free)</a></li>
+        <li class="mdui-menu-item"><a href="intent:${url}#Intent;package=com.mxtech.videoplayer.pro;S.title=${path};end" class="mdui-ripple">MXPlayer(Pro)</a></li>
+      </ul>`;
     }
     var content = `
 <div class="mdui-container-fluid">
