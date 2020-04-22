@@ -358,7 +358,7 @@ function append_files_to_list(path, files) {
                 });
             }
             var ext = p.split('.').pop().toLowerCase();
-            if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|flac|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|".indexOf(`|${ext}|`) >= 0) {
+            if ("|html|php|css|go|java|js|json|txt|sh|md|mp4|webm|avi|bmp|jpg|jpeg|png|gif|m4a|mp3|flac|wav|ogg|mpg|mpeg|mkv|rm|rmvb|mov|wmv|asf|ts|flv|pdf|".indexOf(`|${ext}|`) >= 0) {
                 targetFiles.push(filepath);
                 p += "?a=view";
                 c += " view";
@@ -681,6 +681,8 @@ function file(path) {
     if ("|bmp|jpg|jpeg|png|gif|".indexOf(`|${ext}|`) >= 0) {
         return file_image(path);
     }
+
+    if ('pdf' === ext) return file_pdf(path);
 }
 
 // 文件展示 |html|php|css|go|java|js|json|txt|sh|md|
@@ -799,6 +801,17 @@ function file_audio(path) {
     $('#content').html(content);
 }
 
+// 文件展示 pdf  pdf
+function file_pdf(path) {
+    const url = window.location.origin + path;
+    const inline_url = `${url}?inline=true`
+    const file_name = decodeURI(path.slice(path.lastIndexOf('/') + 1, path.length))
+    var content = `
+	<object data="${inline_url}" type="application/pdf" name="${file_name}" style="width:100%;height:94vh;"><embed src="${inline_url}" type="application/pdf"/></object>
+    <a href="${url}" class="mdui-fab mdui-fab-fixed mdui-ripple mdui-color-theme-accent"><i class="mdui-icon material-icons">file_download</i></a>
+	`;
+    $('#content').removeClass('mdui-container').addClass('mdui-container-fluid').css({padding: 0}).html(content);
+}
 
 // 图片展示
 function file_image(path) {

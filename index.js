@@ -1,10 +1,13 @@
 var authConfig = {
     "siteName": "GoIndex", // 网站名称
-    "version": "_3.9", // 程序版本。用户不要手动修改
+    "version": "_4.23", // 程序版本。用户不要手动修改
     // 此版本只支持 material
     "theme": "material", // material  classic
-    "client_id": "202264815644.apps.googleusercontent.com",
-    "client_secret": "X4Z3ca8xfWDb1Voo-F9a7ZxJ",
+    /*"client_id": "202264815644.apps.googleusercontent.com",
+    "client_secret": "X4Z3ca8xfWDb1Voo-F9a7ZxJ",*/
+    // 强烈推荐使用自己的 client_id 和 client_secret
+    "client_id": "",
+    "client_secret": "",
     "refresh_token": "", // 授权 token
     /**
      * 设置要显示的多个云端硬盘；按格式添加多个
@@ -43,9 +46,10 @@ var authConfig = {
      * 如果设置的值过小，会导致搜索结果页面滚动条增量加载（分页加载）失效；
      * 此值的大小影响搜索操作的响应速度。
      */
-    "search_result_list_page_size": 50
+    "search_result_list_page_size": 50,
+    // 确认有 cors 用途的可以开启
+    "enable_cors_file_down": false
     // user_drive_real_root_id
-
 };
 
 
@@ -222,7 +226,8 @@ async function handleRequest(request) {
         }
         let file = await gd.file(path);
         let range = request.headers.get('Range');
-        return gd.down(file.id, range);
+        const inline_down = 'true' === url.searchParams.get('inline');
+        return gd.down(file.id, range, inline_down);
     }
 }
 
@@ -342,11 +347,15 @@ class googleDrive {
         }
     }
 
-    async down(id, range = '') {
+    async down(id, range = '', inline = false) {
         let url = `https://www.googleapis.com/drive/v3/files/${id}?alt=media`;
         let requestOption = await this.requestOption();
         requestOption.headers['Range'] = range;
-        return await fetch(url, requestOption);
+        let res = await fetch(url, requestOption);
+        const {headers} = res = new Response(res.body, res)
+        this.authConfig.enable_cors_file_down && headers.append('Access-Control-Allow-Origin', '*');
+        inline === true && headers.set('Content-Disposition', 'inline');
+        return res;
     }
 
     async file(path) {
