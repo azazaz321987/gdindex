@@ -1,32 +1,75 @@
 ![GoIndex](https://raw.githubusercontent.com/donwa/goindex/master/themes/logo.png)  
 
-> update 2020-3-9 :
+GoIndex  
+====  
+
+这是一个 [修改版的goindex](https://github.com/yanzai/goindex) ，在 [原版goindex](https://github.com/donwa/goindex) 基础上添加了多盘支持、搜索、分页加载等功能。
+
+`index.js` 包含 Workers 所需的代码.
+
+## 预览
+
+Demo: https://yanzai-goindex.java.workers.dev
+
+
+
+多盘：  
+![多盘](imgs/1.png)
+
+
+
+搜索：  
+![搜索](imgs/2.png)
+
+
+
+分页：  
+![分页](imgs/3.png)
+
+
+
+## 更新日志
+
+### 2020-4-23
+
+- 支持 nPlayer / MXPlayer Free / MXPlayer Pro / PotPlayer 播放（依据平台提供相应的播放按钮）
+- 简单支持 PDF 文件预览
+- 可以配置是否允许其他 web 前端 cors 方式获取文件
+
+### 2020-3-9
+
 - flac file play support
 
-> update 2020-3-7 :  
+### 2020-3-7
+
 - 添加搜索功能，搜索结果分页增量展示，并支持跳转到对应路径浏览
 - 搜索功能支持个人盘和团队盘全盘搜索
 - 搜索分页大小可配置，具体见 `index.js` 注释
 - 尝试解决移动端滚动到底部时的增量加载问题
 - UI优化，盘符选择改为下拉框展示
 
-> update 2020-3-5 :  
+### 2020-3-5
+
 - 文件列表页分页增量加载，支持自定义分页大小，多页内容的可以缓存，配置见 `index.js` 注释
 - 图片浏览页 下一张/上一张 导航
 - 优化列目录时的速度
 
-> update 2020-3-4 :  
-> 在原版基础上修改：
+### 2020-3-4
+
+在原版基础上修改：
+
 - 添加多盘支持，自主设置要显示的多盘及各自密码
 - 前端只修改了 material ，故不支持 classic 主题
 - 配置见 `index.js` 注释
   
-GoIndex  
-====  
-Google Drive Directory Index  
-Combining the power of [Cloudflare Workers](https://workers.cloudflare.com/) and [Google Drive](https://www.google.com/drive/) will allow you to index you files on the browser on Cloudflare Workers.    
 
-`index.js` is the content of the Workers script.  
+---
+
+
+
+> **安装部署可以参考原版，以下摘自原版 goindex 的部署说明：**
+
+
 
 ## Demo  
 material: [https://index.gd.workers.dev/](https://index.gd.workers.dev/)  
