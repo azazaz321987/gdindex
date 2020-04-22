@@ -256,7 +256,7 @@ function list(path) {
                     var scrollHeight = getDocumentHeight();
                     var windowHeight = $(this).height();
                     // 滚到底部
-                    if (scrollTop + windowHeight == scrollHeight) {
+                    if (scrollTop + windowHeight > scrollHeight - (Os.isMobile ? 130 : 80)) {
                         /*
                             滚到底部事件触发时，如果此时已经正在 loading 中，则忽略此次事件；
                             否则，去 loading，并占据 loading锁，表明 正在 loading 中
@@ -489,7 +489,7 @@ function render_search_result_list() {
                     var scrollHeight = getDocumentHeight();
                     var windowHeight = $(this).height();
                     // 滚到底部
-                    if (scrollTop + windowHeight == scrollHeight) {
+                    if (scrollTop + windowHeight > scrollHeight - (Os.isMobile ? 130 : 80)) {
                         /*
                             滚到底部事件触发时，如果此时已经正在 loading 中，则忽略此次事件；
                             否则，去 loading，并占据 loading锁，表明 正在 loading 中
