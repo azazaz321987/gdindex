@@ -120,8 +120,9 @@ function nav(path) {
         }
     }
     var search_text = model.is_search_page ? (model.q || '') : '';
+    const isMobile = Os.isMobile;
     var search_bar = `<div class="mdui-toolbar-spacer"></div>
-        <div id="search_bar" class="mdui-textfield mdui-textfield-expandable mdui-float-right ${model.is_search_page ? 'mdui-textfield-expanded' : ''}">
+        <div id="search_bar" class="mdui-textfield mdui-textfield-expandable mdui-float-right ${model.is_search_page ? 'mdui-textfield-expanded' : ''}" style="max-width:${isMobile ? 300 : 400}px">
             <button class="mdui-textfield-icon mdui-btn mdui-btn-icon" onclick="if($('#search_bar').hasClass('mdui-textfield-expanded') && $('#search_bar_form>input').val()) $('#search_bar_form').submit();">
                 <i class="mdui-icon material-icons">search</i>
             </button>
