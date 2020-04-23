@@ -736,23 +736,50 @@ function file_code(path) {
   });
 }
 
+function copyToClipboard(str) {
+  const $temp = $("<input>");
+  $("body").append($temp);
+  $temp.val(str).select();
+  document.execCommand("copy");
+  $temp.remove();
+}
+
 // 文件展示 视频 |mp4|webm|avi|
 function file_video(path) {
-  var url = window.location.origin + path;
-  let playBtn = `<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="potplayer://${url}"><i class="mdui-icon material-icons">&#xe038;</i>在 potplayer 中播放</a>`;
-  if (Os.isMacLike)
-    playBtn = `<a class="mdui-btn mdui-btn-raised mdui-ripple mdui-color-theme-accent" href="nplayer-${url}"><i class="mdui-icon material-icons">&#xe037;</i>用 nPlayer 播放</a>`;
-  else if (Os.isMobile) {
-    playBtn = `
-      <button class="mdui-btn mdui-ripple mdui-color-theme-accent" mdui-menu="{target:'#mx-items'}">
-        <i class="mdui-icon material-icons">&#xe039;</i>用 mxplayer 播放<i class="mdui-icon material-icons">&#xe5cf;</i>
+  const url = window.location.origin + path;
+  let player_items = [
+    {
+      text: 'MXPlayer(Free)',
+      href: `intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${path};end`,
+    },
+    {
+      text: 'MXPlayer(Pro)',
+      href: `intent:${url}#Intent;package=com.mxtech.videoplayer.pro;S.title=${path};end`,
+    },
+    {
+      text: 'nPlayer',
+      href: `nplayer-${url}`,
+    },
+    {
+      text: 'VLC',
+      href: `vlc://${url}`,
+    },
+    {
+      text: 'PotPlayer',
+      href: `potplayer://${url}`
+    }
+  ]
+    .map(it => `<li class="mdui-menu-item"><a href="${it.href}" class="mdui-ripple">${it.text}</a></li>`)
+    .join('');
+  player_items += `<li class="mdui-divider"></li>
+                   <li class="mdui-menu-item"><a id="copy-link" class="mdui-ripple">复制链接</a></li>`;
+  const playBtn = `
+      <button class="mdui-btn mdui-ripple mdui-color-theme-accent" mdui-menu="{target:'#player-items'}">
+        <i class="mdui-icon material-icons">&#xe039;</i>外部播放器播放<i class="mdui-icon material-icons">&#xe5cf;</i>
       </button>
-      <ul class="mdui-menu" id="mx-items">
-        <li class="mdui-menu-item"><a href="intent:${url}#Intent;package=com.mxtech.videoplayer.ad;S.title=${path};end" class="mdui-ripple">MXPlayer(Free)</a></li>
-        <li class="mdui-menu-item"><a href="intent:${url}#Intent;package=com.mxtech.videoplayer.pro;S.title=${path};end" class="mdui-ripple">MXPlayer(Pro)</a></li>
-      </ul>`;
-  }
-  var content = `
+      <ul class="mdui-menu" id="player-items">${player_items}</ul>`;
+
+  const content = `
 <div class="mdui-container-fluid">
 	<br>
 	<video class="mdui-video-fluid mdui-center" preload controls>
@@ -772,6 +799,10 @@ function file_video(path) {
 <a href="${url}" class="mdui-fab mdui-fab-fixed mdui-ripple mdui-color-theme-accent"><i class="mdui-icon material-icons">file_download</i></a>
 	`;
   $('#content').html(content);
+  $('#copy-link').on('click', () => {
+    copyToClipboard(url);
+    mdui.snackbar('已复制到剪切板!');
+  });
 }
 
 // 文件展示 音频 |mp3|flac|m4a|wav|ogg|
