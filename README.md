@@ -32,7 +32,7 @@ Demo: https://yanzai-goindex.java.workers.dev
 
 ### 2020-4-23
 
-- 支持 nPlayer / MXPlayer Free / MXPlayer Pro / PotPlayer 播放（依据平台提供相应的播放按钮）
+- 支持调用 nPlayer / MXPlayer Free / MXPlayer Pro / PotPlayer / VLC 播放，支持直接复制直链
 - 简单支持 PDF 文件预览
 - 可以配置是否允许其他 web 前端 cors 方式获取文件
 
