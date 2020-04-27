@@ -34,7 +34,7 @@ Demo: https://yanzai-goindex.java.workers.dev
 
 - 添加 Basic Auth 认证，每个盘符可单独配置用户名和密码，可以保护该盘下所有子文件和子文件夹
 
-- 支持自定义 web 界面主题色，添加了 dark_mode
+- 支持自定义 web 界面主题色，添加了 dark_mode ; 在 `uiConfig` 中可以配置
 
 - 原 goindex 的 .password 验证方式作为后备验证方式得以保留，但默认不开启
 
