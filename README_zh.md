@@ -30,6 +30,16 @@ Demo: https://yanzai-goindex.java.workers.dev
 
 ## 更新日志
 
+### 2020-4-28
+
+- 添加 Basic Auth 认证，每个盘符可单独配置用户名和密码，可以保护该盘下所有子文件和子文件夹
+
+- 支持自定义 web 界面主题色，添加了 dark_mode
+
+- 原 goindex 的 .password 验证方式作为后备验证方式得以保留，但默认不开启
+
+  以上，详见 `index.js` 中的配置项的注释。
+
 ### 2020-4-23
 
 - 支持调用 nPlayer / MXPlayer Free / MXPlayer Pro / PotPlayer / VLC 播放，支持直接复制直链
@@ -92,7 +102,7 @@ classic:
 在google drive 文件中放置 `.password` 文件来设置密码。  
 密码文件只能保护该文件不被列举，不能保护该文件夹的子文件夹不被列举。  
 也不保护文件夹下文件不被下载。  
-  
+
 程序文件中 `root_pass` 只为根目录密码，优先于 `.password` 文件  
 
 
@@ -114,10 +124,10 @@ classic:
 优化前端逻辑  
 添加文件预览功能(临时)  
 添加前端文件缓存功能  
-  
+
 1.0.1  
 添加 README.md 、 HEAD.md 支持  
-  
+
 1.0.0  
 前后端分离，确定基本架构  
 添加.password 支持  
