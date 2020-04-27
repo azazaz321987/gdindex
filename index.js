@@ -1,8 +1,6 @@
-var authConfig = {
+const authConfig = {
   "siteName": "GoIndex", // 网站名称
-  "version": "_4.23", // 程序版本。用户不要手动修改
-  // 此版本只支持 material
-  "theme": "material", // material  classic
+  "version": "_4.28", // 程序版本。用户不要手动修改
   /*"client_id": "202264815644.apps.googleusercontent.com",
   "client_secret": "X4Z3ca8xfWDb1Voo-F9a7ZxJ",*/
   // 【注意】强烈推荐使用自己的 client_id 和 client_secret
@@ -62,6 +60,19 @@ var authConfig = {
   "enable_password_file_verify": false
 };
 
+/**
+ * web ui 设置
+ */
+const uiConfig = {
+  // 此版本只支持 material
+  "theme": "material", // DO NOT set it to classic
+  "dark_mode": false,
+  "main_color": "blue-grey",
+  "accent_color": "blue",
+  /*"main_color": "light-green",
+  "accent_color": "green",*/
+  "fluid_navigation_bar": true,
+};
 
 /**
  * global functions
@@ -111,8 +122,9 @@ function html(current_drive_order = 0, model = {}) {
     window.drive_names = JSON.parse('${JSON.stringify(authConfig.roots.map(it => it.name))}');
     window.MODEL = JSON.parse('${JSON.stringify(model)}');
     window.current_drive_order = ${current_drive_order};
+    window.UI = JSON.parse('${JSON.stringify(uiConfig)}');
   </script>
-  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@${authConfig.version}/themes/${authConfig.theme}/app.js"></script>
+  <script src="//cdn.jsdelivr.net/combine/gh/jquery/jquery@3.2/dist/jquery.min.js,gh/yanzai/goindex@${authConfig.version}/themes/${uiConfig.theme}/app.js"></script>
   <script src="//cdnjs.cloudflare.com/ajax/libs/mdui/0.4.3/js/mdui.min.js"></script>
 </head>
 <body>
