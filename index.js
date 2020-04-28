@@ -9,11 +9,14 @@ const authConfig = {
   "refresh_token": "", // 授权 token
   /**
    * 设置要显示的多个云端硬盘；按格式添加多个
-   * [id] 可以是 团队盘id、子文件夹id、或者"root"（代表个人盘根目录）；
-   * [name] 显示的名称
-   * [user] Basic Auth 的用户名
-   * [pass] Basic Auth 的密码
-   * 每个盘的 Basic Auth 都可以单独设置。Basic Auth 对该盘下所有路径都生效，包括子文件夹、该盘内的文件直链等。
+   * [id]: 可以是 团队盘id、子文件夹id、或者"root"（代表个人盘根目录）；
+   * [name]: 显示的名称
+   * [user]: Basic Auth 的用户名
+   * [pass]: Basic Auth 的密码
+   * [protect_file_link]: Basic Auth 是否用于保护文件链接，默认值（不设置时）为 false，即不保护文件链接（方便 直链下载/外部播放 等）
+   * 每个盘的 Basic Auth 都可以单独设置。Basic Auth 默认保护该盘下所有文件夹/子文件夹路径
+   * 【注意】默认不保护文件链接，这样可以方便 直链下载/外部播放;
+   *       如果要保护文件链接，需要将 protect_file_link 设置为 true，此时如果要进行外部播放等操作，需要将 host 替换为 user:pass@host 的 形式
    * 不需要 Basic Auth 的盘，保持 user 和 pass 同时为空即可。（直接不设置也可以）
    * 【注意】对于id设置为为子文件夹id的盘将不支持搜索功能（不影响其他盘）。
    */
@@ -26,14 +29,16 @@ const authConfig = {
       id: "drive_id",
       name: "团队盘1",
       user: 'user1',
-      pass: "111"
+      pass: "111",
+      protect_file_link: true
     },
     {
       id: "folder_id",
       name: "文件夹",
       // 只设置密码、只设置用户名、同时设置用户名密码，都是可以的
       user: '',
-      pass: "222"
+      pass: "222",
+      protect_file_link: false
     }
   ],
   /**
@@ -233,27 +238,29 @@ async function handleRequest(request) {
   }
 
   // basic auth
-  for (const r = gd.basicAuthResponse(request); r;) return r;
+  // for (const r = gd.basicAuthResponse(request); r;) return r;
+  const basic_auth_res = gd.basicAuthResponse(request);
 
   path = path.replace(gd.url_path_prefix, '') || '/';
   if (request.method == 'POST') {
-    return apiRequest(request, gd);
+    return basic_auth_res || apiRequest(request, gd);
   }
 
   let action = url.searchParams.get('a');
 
   if (path.substr(-1) == '/' || action != null) {
-    return new Response(html(gd.order, {root_type: gd.root_type}), {
+    return basic_auth_res || new Response(html(gd.order, {root_type: gd.root_type}), {
       status: 200,
       headers: {'Content-Type': 'text/html; charset=utf-8'}
     });
   } else {
     if (path.split('/').pop().toLowerCase() == ".password") {
-      return new Response("", {status: 404});
+      return basic_auth_res || new Response("", {status: 404});
     }
     let file = await gd.file(path);
     let range = request.headers.get('Range');
     const inline_down = 'true' === url.searchParams.get('inline');
+    if (gd.root.protect_file_link && basic_auth_res) return basic_auth_res;
     return gd.down(file.id, range, inline_down);
   }
 }
@@ -317,6 +324,7 @@ class googleDrive {
     // 每个盘对应一个order，对应一个gd实例
     this.order = order;
     this.root = authConfig.roots[order];
+    this.root.protect_file_link = this.root.protect_file_link || false;
     this.url_path_prefix = `/${order}:`;
     this.authConfig = authConfig;
     // TODO: 这些缓存的失效刷新策略，后期可以制定一下
